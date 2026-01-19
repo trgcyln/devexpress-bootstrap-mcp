@@ -1,0 +1,43 @@
+{
+  "name": "devexpress-bootstrap-mcp-server",
+  "version": "1.0.0",
+  "description": "MCP server for crawling and indexing DevExpress ASP.NET Bootstrap documentation",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/trgcyln/devexpress-bootstrap-mcp.git"
+  },
+  "homepage": "https://github.com/trgcyln/devexpress-bootstrap-mcp#readme",
+  "type": "module",
+  "main": "dist/server.js",
+  "bin": {
+    "devexpress-bootstrap-mcp": "dist/server.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "crawl": "node dist/crawl.js",
+    "dev": "tsc && node dist/server.js",
+    "watch": "tsc --watch"
+  },
+  "keywords": [
+    "mcp",
+    "devexpress",
+    "bootstrap",
+    "asp.net",
+    "documentation"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "cheerio": "^1.0.0",
+    "minisearch": "^7.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

@@ -1,0 +1,63 @@
+# Node.js
+node_modules/
+npm-debug.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+
+# TypeScript
+dist/
+*.js
+*.js.map
+*.d.ts
+*.d.ts.map
+
+# Build outputs
+build/
+out/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.sublime-project
+*.sublime-workspace
+
+# Data files - starter index is included in git
+# Only exclude if you have a full personal index
+# Uncomment the line below to exclude large personal indexes:
+# data/pages.json
+# data/meta.json
+data/crawl_queue.json
+
+# Logs
+logs/
+*.log
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temp files
+*.tmp
+*.bak
+*.backup
+~*
+
+# Editor backups
+*.code-workspace
