@@ -734,6 +734,31 @@ const TOOLS: Tool[] = [
       required: ["query"],
     },
   },
+  // Alias for devexpress_bootstrap_open_top_result - Claude sometimes shortens the name
+  {
+    name: "devexpress_bootstrap_open_to",
+    description: "Alias for devexpress_bootstrap_open_top_result. Searches the indexed DevExpress ASP.NET Bootstrap documentation and returns the best matching page.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: {
+          type: "string",
+          description: "Search query (e.g., 'BootstrapGridView column editing' or 'TreeView node selection')",
+        },
+        includeCode: {
+          type: "boolean",
+          description: "Whether to include code examples from the page",
+          default: true,
+        },
+        maxChars: {
+          type: "number",
+          description: "Maximum characters of text content to return",
+          default: 15000,
+        },
+      },
+      required: ["query"],
+    },
+  },
 ];
 
 /**
@@ -780,20 +805,22 @@ function createServer(): Server {
           };
         }
 
-        case "devexpress_bootstrap_open_top_result": {
-          const query = args?.query as string;
-          if (!query) {
-            return {
-              content: [{ type: "text", text: JSON.stringify({ status: "error", message: "Query parameter is required" }) }],
-              isError: true,
-            };
-          }
-          const includeCode = args?.includeCode !== false;
-          const maxChars = (args?.maxChars as number) || 15000;
-          const result = handleOpenTopResult(query, includeCode, maxChars);
-          return {
-            content: [{ type: "text", text: result }],
-          };
+        case "devexpress_bootstrap_open_top_result":
+        case "devexpress_bootstrap_open_to": {
+          // Support both full name and shortened alias
+           const query = args?.query as string;
+           if (!query) {
+             return {
+               content: [{ type: "text", text: JSON.stringify({ status: "error", message: "Query parameter is required" }) }],
+               isError: true,
+             };
+           }
+           const includeCode = args?.includeCode !== false;
+           const maxChars = (args?.maxChars as number) || 15000;
+           const result = handleOpenTopResult(query, includeCode, maxChars);
+           return {
+             content: [{ type: "text", text: result }],
+           };
         }
 
         default:
