@@ -234,11 +234,23 @@ BootstrapTreeView node selection example, use devexpress mcp
 | `npm install` | Install dependencies |
 | `npm run build` | Compile TypeScript |
 | `npm run start` | Start MCP server (used by Roo Code) |
-| `npm run crawl` | Crawl documentation (default: 800 pages) |
-| `npm run crawl:docs` | Crawl only documentation |
+| `npm run crawl:docs` | Crawl only documentation (default: 800 pages) |
 | `npm run crawl:github` | Crawl only GitHub code examples |
 | `npm run crawl:all` | Crawl both docs and GitHub examples |
-| `npm run crawl -- --max 5000` | Crawl up to 5000 pages |
+| `npm run crawl -- --max 5000` | ⚠️ **Note the double dash `--`** |
+| `npm run crawl -- --type github --max 200` | Crawl GitHub with options |
+
+### ⚠️ Important: Double Dash for Arguments
+
+When passing options to npm scripts, **always use `--`** before your arguments:
+
+```bash
+# ✅ Correct (with double dash)
+npm run crawl -- --type docs --max 500
+
+# ❌ Wrong (missing double dash)
+npm run crawl --type docs --max 500
+```
 
 ### Crawler Options
 

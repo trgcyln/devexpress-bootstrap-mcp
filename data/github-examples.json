@@ -1,0 +1,411 @@
+[
+  {
+    "id": "DevExpress/DevExtreme.AspNet.Data:net/DevExtreme.AspNet.Data.Tests.Common/AsyncTestHelper.cs",
+    "type": "code-file",
+    "title": "AsyncTestHelper",
+    "filePath": "net/DevExtreme.AspNet.Data.Tests.Common/AsyncTestHelper.cs",
+    "repoName": "DevExpress/DevExtreme.AspNet.Data",
+    "repoUrl": "https://github.com/DevExpress/DevExtreme.AspNet.Data",
+    "fileUrl": "https://github.com/DevExpress/DevExtreme.AspNet.Data/blob/main/net/DevExtreme.AspNet.Data.Tests.Common/AsyncTestHelper.cs",
+    "language": "csharp",
+    "content": "using System;\nusing System.Collections.Generic;\nusing System.Linq;\nusing System.Threading.Tasks;\nusing Xunit;\n\nnamespace DevExtreme.AspNet.Data.Tests {\n\n    public static class AsyncTestHelper {\n\n        public interface IDataItem {\n            int Value { get; set; }\n        }\n\n        public static IEnumerable<T> CreateTestData<T>(Func<T> itemFactory) where T : IDataItem {\n            for(var i = 1; i <= 3; i++) {\n                var item = itemFactory();\n                item.Value = i;\n                yield return item;\n            }\n        }\n\n        public static async Task RunAsync<T>(IQueryable<T> data) {\n            var loadOptions = new SampleLoadOptions {\n                RequireTotalCount = true,\n                Take = 1,\n                RemoteGrouping = true\n            };\n\n            {\n                var loadResult = await DataSourceLoader.LoadAsync(data, loadOptions);\n                Assert.Equal(3, loadResult.totalCount);\n                Assert.Single(loadResult.data);\n            }\n\n            {\n                loadOptions.TotalSummary = new[] {\n                    new SummaryInfo { SummaryType = \"sum\", Selector = nameof(IDataItem.Value) }\n                };\n\n                var loadResult = await DataSourceLoader.LoadAsync(data, loadOptions);\n                Assert.Equal(6m, loadResult.summary[0]);\n            }\n\n            Assert.Contains(loadOptions.ExpressionLog, i => i.EndsWith(\".Count()\"));\n            Assert.Contains(loadOptions.ExpressionLog, i => i.EndsWith(\".Take(1)\"));\n            Assert.Contains(loadOptions.ExpressionLog, i => i.Contains(\".GroupBy\"));\n        }\n\n    }\n\n}\n",
+    "contentPreview": "using System;\nusing System.Collections.Generic;\nusing System.Linq;\nusing System.Threading.Tasks;\nusing Xunit;\n\nnamespace DevExtreme.AspNet.Data.Tests {\n\n    public static class AsyncTestHelper {\n\n        public interface IDataItem {\n            int Value { get; set; }\n        }\n\n        public static IEnumerable<T> CreateTestData<T>(Func<T> itemFactory) where T : IDataItem {\n            for(var i = 1; i <= 3; i++) {\n                var item = itemFactory();\n                item.Value = i;\n      ",
+    "relatedClasses": [
+      "AsyncTestHelper"
+    ],
+    "relatedMethods": [],
+    "description": "",
+    "fetchedAt": "2026-01-19T17:58:12.790Z"
+  },
+  {
+    "id": "DevExpress/DevExtreme.AspNet.Data:net/DevExtreme.AspNet.Data.Tests.Common/Compat.cs",
+    "type": "code-file",
+    "title": "Compat",
+    "filePath": "net/DevExtreme.AspNet.Data.Tests.Common/Compat.cs",
+    "repoName": "DevExpress/DevExtreme.AspNet.Data",
+    "repoUrl": "https://github.com/DevExpress/DevExtreme.AspNet.Data",
+    "fileUrl": "https://github.com/DevExpress/DevExtreme.AspNet.Data/blob/main/net/DevExtreme.AspNet.Data.Tests.Common/Compat.cs",
+    "language": "csharp",
+    "content": "using System;\nusing System.Linq;\n\nnamespace DevExtreme.AspNet.Data.Tests {\n\n    static class Compat {\n\n        public static bool CanUseRemoteAvg(IQueryProvider provider) {\n            var providerInfo = new QueryProviderInfo(provider);\n\n            if(providerInfo.IsEFCore) {\n                var version = providerInfo.Version.Major;\n\n                // https://github.com/aspnet/EntityFrameworkCore/issues/11711\n                if(version == 2 || version == 3)\n                    return false;\n            }\n\n            return true;\n        }\n\n    }\n\n}\n",
+    "contentPreview": "using System;\nusing System.Linq;\n\nnamespace DevExtreme.AspNet.Data.Tests {\n\n    static class Compat {\n\n        public static bool CanUseRemoteAvg(IQueryProvider provider) {\n            var providerInfo = new QueryProviderInfo(provider);\n\n            if(providerInfo.IsEFCore) {\n                var version = providerInfo.Version.Major;\n\n                // https://github.com/aspnet/EntityFrameworkCore/issues/11711\n                if(version == 2 || version == 3)\n                    return false;\n  ",
+    "relatedClasses": [
+      "Compat"
+    ],
+    "relatedMethods": [
+      "CanUseRemoteAvg",
+      "QueryProviderInfo"
+    ],
+    "description": "https:github.com/aspnet/EntityFrameworkCore/issues/11711",
+    "fetchedAt": "2026-01-19T17:58:13.217Z"
+  },
+  {
+    "id": "DevExpress/DevExtreme.AspNet.Data:net/DevExtreme.AspNet.Data.Tests.Common/ExpandLinqSumTypeTestHelper.cs",
+    "type": "code-file",
+    "title": "ExpandLinqSumTypeTestHelper",
+    "filePath": "net/DevExtreme.AspNet.Data.Tests.Common/ExpandLinqSumTypeTestHelper.cs",
+    "repoName": "DevExpress/DevExtreme.AspNet.Data",
+    "repoUrl": "https://github.com/DevExpress/DevExtreme.AspNet.Data",
+    "fileUrl": "https://github.com/DevExpress/DevExtreme.AspNet.Data/blob/main/net/DevExtreme.AspNet.Data.Tests.Common/ExpandLinqSumTypeTestHelper.cs",
+    "language": "csharp",
+    "content": "using System;\nusing System.Collections.Generic;\nusing System.Linq;\nusing Xunit;\n\nnamespace DevExtreme.AspNet.Data.Tests {\n\n    public static class ExpandLinqSumTypeTestHelper {\n\n        public interface IEntity {\n            Int32? Int32Prop { get; set; }\n            Single? SingleProp { get; set; }\n        }\n\n        public static IEnumerable<T> GenerateTestData<T>(Func<T> itemFactory) where T : IEntity {\n            for(var i = 0; i < 2; i++) {\n                var item = itemFactory();\n                item.Int32Prop = Int32.MaxValue;\n                item.SingleProp = Single.MaxValue;\n                yield return item;\n            }\n        }\n\n        public static void Run<T>(IQueryable<T> data) {\n            var loadResult = DataSourceLoader.Load(data, new SampleLoadOptions {\n                RemoteGrouping = true,\n                TotalSummary = new[] {\n                    new SummaryInfo { SummaryType = \"sum\", Selector = nameof(IEntity.Int32Prop) },\n                    new SummaryInfo { SummaryType = \"sum\", Selector = nameof(IEntity.SingleProp) }\n                }\n            });\n\n            var summary = loadResult.summary;\n\n            Assert.Equal(2m * Int32.MaxValue, summary[0]);\n            Assert.Equal(2d * Single.MaxValue, summary[1]);\n        }\n    }\n\n}\n",
+    "contentPreview": "using System;\nusing System.Collections.Generic;\nusing System.Linq;\nusing Xunit;\n\nnamespace DevExtreme.AspNet.Data.Tests {\n\n    public static class ExpandLinqSumTypeTestHelper {\n\n        public interface IEntity {\n            Int32? Int32Prop { get; set; }\n            Single? SingleProp { get; set; }\n        }\n\n        public static IEnumerable<T> GenerateTestData<T>(Func<T> itemFactory) where T : IEntity {\n            for(var i = 0; i < 2; i++) {\n                var item = itemFactory();\n       ",
+    "relatedClasses": [
+      "ExpandLinqSumTypeTestHelper"
+    ],
+    "relatedMethods": [],
+    "description": "",
+    "fetchedAt": "2026-01-19T17:58:13.838Z"
+  },
+  {
+    "id": "DevExpress/DevExtreme.AspNet.Data:net/DevExtreme.AspNet.Data.Tests.Common/PaginateViaPrimaryKeyTestHelper.cs",
+    "type": "code-file",
+    "title": "PaginateViaPrimaryKeyTestHelper",
+    "filePath": "net/DevExtreme.AspNet.Data.Tests.Common/PaginateViaPrimaryKeyTestHelper.cs",
+    "repoName": "DevExpress/DevExtreme.AspNet.Data",
+    "repoUrl": "https://github.com/DevExpress/DevExtreme.AspNet.Data",
+    "fileUrl": "https://github.com/DevExpress/DevExtreme.AspNet.Data/blob/main/net/DevExtreme.AspNet.Data.Tests.Common/PaginateViaPrimaryKeyTestHelper.cs",
+    "language": "csharp",
+    "content": "using System;\nusing System.Collections.Generic;\nusing System.Linq;\nusing Xunit;\n\nnamespace DevExtreme.AspNet.Data.Tests {\n\n    public class PaginateViaPrimaryKeyTestHelper {\n\n        public interface IDataItem {\n            int K1 { get; set; }\n            long K2 { get; set; }\n        }\n\n        public static IEnumerable<T> CreateTestData<T>() where T : IDataItem, new() {\n            for(var i = 1; i <= 3; i++)\n                yield return new T { K1 = i, K2 = i };\n        }\n\n        public static void Run<T>(IQueryable<T> source) {\n            Run(source, new[] { \"K1\" });\n            Run(source, new[] { \"K1\", \"K2\" });\n        }\n\n        static void Run<T>(IQueryable<T> source, string[] pk) {\n            var loadOptions = new SampleLoadOptions {\n                PrimaryKey = pk,\n                PaginateViaPrimaryKey = true,\n                Filter = new[] { \"K1\", \">\", \"1\" },\n                Select = new[] { \"K1\", \"K2\" },\n                Sort = new[] {\n                    new SortingInfo { Selector = \"K1\" }\n                },\n                Skip = 1,\n                Take = 1,\n                RequireTotalCount = true\n            };\n\n            var loadResult = DataSourceLoader.Load(source, loadOptions);\n            var data = loadResult.data.Cast<IDictionary<string, object>>().ToArray();\n\n            Assert.Single(data);\n            Assert.Equal(3, data[0][\"K1\"]);\n        }\n\n    }\n\n}\n",
+    "contentPreview": "using System;\nusing System.Collections.Generic;\nusing System.Linq;\nusing Xunit;\n\nnamespace DevExtreme.AspNet.Data.Tests {\n\n    public class PaginateViaPrimaryKeyTestHelper {\n\n        public interface IDataItem {\n            int K1 { get; set; }\n            long K2 { get; set; }\n        }\n\n        public static IEnumerable<T> CreateTestData<T>() where T : IDataItem, new() {\n            for(var i = 1; i <= 3; i++)\n                yield return new T { K1 = i, K2 = i };\n        }\n\n        public sta",
+    "relatedClasses": [
+      "PaginateViaPrimaryKeyTestHelper"
+    ],
+    "relatedMethods": [],
+    "description": "",
+    "fetchedAt": "2026-01-19T17:58:14.262Z"
+  },
+  {
+    "id": "DevExpress/DevExtreme.AspNet.Data:net/DevExtreme.AspNet.Data.Tests.Common/RemoteGroupCountTestHelper.cs",
+    "type": "code-file",
+    "title": "RemoteGroupCountTestHelper",
+    "filePath": "net/DevExtreme.AspNet.Data.Tests.Common/RemoteGroupCountTestHelper.cs",
+    "repoName": "DevExpress/DevExtreme.AspNet.Data",
+    "repoUrl": "https://github.com/DevExpress/DevExtreme.AspNet.Data",
+    "fileUrl": "https://github.com/DevExpress/DevExtreme.AspNet.Data/blob/main/net/DevExtreme.AspNet.Data.Tests.Common/RemoteGroupCountTestHelper.cs",
+    "language": "csharp",
+    "content": "using DevExtreme.AspNet.Data.ResponseModel;\nusing System;\nusing System.Collections.Generic;\nusing System.Linq;\nusing System.Text;\nusing Xunit;\n\nnamespace DevExtreme.AspNet.Data.Tests {\n\n    public class RemoteGroupCountTestHelper {\n\n        public interface IEntity {\n            int G1 { get; set; }\n            int G2 { get; set; }\n        }\n\n        public static IEnumerable<T> GenerateTestData<T>(Func<T> itemFactory) where T : IEntity {\n            T CreateItem(int g1, int g2) {\n                var item = itemFactory();\n                item.G1 = g1;\n                item.G2 = g2;\n                return item;\n            }\n            yield return CreateItem(1, 0);\n            yield return CreateItem(2, 1);\n            yield return CreateItem(2, 1);\n            yield return CreateItem(2, 2);\n            yield return CreateItem(3, 0);\n        }\n\n        public static void Run<T>(IQueryable<T> data) {\n            Run(data, new[] {\n                new GroupingInfo { Selector = \"G1\", IsExpanded = false }\n            });\n            Run(data, new[] {\n                new GroupingInfo { Selector = \"G1\", IsExpanded = false },\n                new GroupingInfo { Selector = \"G2\", IsExpanded = false }\n            });\n        }\n\n        static void Run<T>(IQueryable<T> data, GroupingInfo[] group) {\n            var loadOptions = new SampleLoadOptions {\n                RemoteGrouping = true,\n                RequireTotalCount = false,\n                RequireGroupCount = true,\n                Group = group,\n                Skip = 1,\n                Take = 1\n            };\n\n            var loadResult = DataSourceLoader.Load(data, loadOptions);\n            Assert.Equal(3, loadResult.groupCount);\n\n            var log = loadOptions.ExpressionLog;\n\n            if(group.Length == 1) {\n                Assert.Equal(-1, loadResult.totalCount); // not requested\n                Assert.Equal(2, log.Count);\n                Assert.Contains(log, line => line.Contains(\".Distinct().Count()\"));\n            } else {\n                Assert.Equal(data.Count(), loadResult.totalCount); // bonus because all groups are loaded\n                Assert.Single(log);\n            }\n        }\n    }\n\n}\n",
+    "contentPreview": "using DevExtreme.AspNet.Data.ResponseModel;\nusing System;\nusing System.Collections.Generic;\nusing System.Linq;\nusing System.Text;\nusing Xunit;\n\nnamespace DevExtreme.AspNet.Data.Tests {\n\n    public class RemoteGroupCountTestHelper {\n\n        public interface IEntity {\n            int G1 { get; set; }\n            int G2 { get; set; }\n        }\n\n        public static IEnumerable<T> GenerateTestData<T>(Func<T> itemFactory) where T : IEntity {\n            T CreateItem(int g1, int g2) {\n              ",
+    "relatedClasses": [
+      "RemoteGroupCountTestHelper"
+    ],
+    "relatedMethods": [
+      "CreateItem"
+    ],
+    "description": "",
+    "fetchedAt": "2026-01-19T17:58:14.693Z"
+  },
+  {
+    "id": "DevExpress/DevExtreme.AspNet.Data:net/DevExtreme.AspNet.Data.Tests.Common/RemoteGroupingStressHelper.cs",
+    "type": "code-file",
+    "title": "RemoteGroupingStressHelper",
+    "filePath": "net/DevExtreme.AspNet.Data.Tests.Common/RemoteGroupingStressHelper.cs",
+    "repoName": "DevExpress/DevExtreme.AspNet.Data",
+    "repoUrl": "https://github.com/DevExpress/DevExtreme.AspNet.Data",
+    "fileUrl": "https://github.com/DevExpress/DevExtreme.AspNet.Data/blob/main/net/DevExtreme.AspNet.Data.Tests.Common/RemoteGroupingStressHelper.cs",
+    "language": "csharp",
+    "content": "using System;\nusing System.Collections.Generic;\nusing System.Linq;\nusing Xunit;\n\nnamespace DevExtreme.AspNet.Data.Tests {\n\n    public static class RemoteGroupingStressHelper {\n        const string PROP_NUM = nameof(IEntity.Num);\n        const string PROP_NULL_NUM = nameof(IEntity.NullNum);\n        const string PROP_DATE = nameof(IEntity.Date);\n        const string PROP_NULL_DATE = nameof(IEntity.NullDate);\n#if EFCORE8 || EFCORE9\n        const string PROP_DATE_ONLY = nameof(IEntity.DateO);\n#endif\n\n        public interface IEntity {\n            int Num { get; }\n            int? NullNum { get; }\n            DateTime Date { get; }\n            DateTime? NullDate { get; }\n#if EFCORE8 || EFCORE9\n            DateOnly DateO { get; set; }\n#endif\n        }\n\n        public static void Run<T>(IQueryable<T> data) where T : IEntity {\n            var loadOptions = new SampleLoadOptions {\n                RemoteGrouping = true,\n                Group = BuildGroupParams(),\n                GroupSummary = BuildSummaryParams(Compat.CanUseRemoteAvg(data.Provider))\n            };\n\n            Assert.Null(Record.Exception(delegate {\n                DataSourceLoader.Load(data, loadOptions);\n            }));\n        }\n\n        static GroupingInfo[] BuildGroupParams() {\n            var list = new List<GroupingInfo> {\n                new GroupingInfo { Selector = PROP_NUM },\n                new GroupingInfo { Selector = PROP_NULL_NUM },\n                new GroupingInfo { Selector = PROP_DATE },\n                new GroupingInfo { Selector = PROP_NULL_DATE },\n#if EFCORE8 || EFCORE9\n                new GroupingInfo { Selector = PROP_DATE_ONLY },\n#endif\n            };\n\n            foreach(var interval in Enumerable.Range(1, 3).Select(i => (100 * i).ToString())) {\n                list.Add(new GroupingInfo { Selector = PROP_NUM, GroupInterval = interval });\n                list.Add(new GroupingInfo { Selector = PROP_NULL_NUM, GroupInterval = interval });\n            }\n\n            foreach(var interval in new[] { \"year\", \"month\", \"day\" }) {\n                list.Add(new GroupingInfo { Selector = PROP_DATE, GroupInterval = interval });\n                list.Add(new GroupingInfo { Selector = PROP_NULL_DATE, GroupInterval = interval });\n            }\n\n            foreach(var item in list)\n                item.IsExpanded = false;\n\n            return list.ToArray();\n        }\n\n        static SummaryInfo[] BuildSummaryParams(bool useAvg) {\n            var list = new List<SummaryInfo>();\n\n            var numericSummaryTypes = new List<string> { \"count\", \"min\", \"max\", \"sum\" };\n            if(useAvg)\n                numericSummaryTypes.Add(\"avg\");\n\n            foreach(var type in numericSummaryTypes) {\n                list.Add(new SummaryInfo { Selector = PROP_NUM, SummaryType = type });\n                list.Add(new SummaryInfo { Selector = PROP_NULL_NUM, SummaryType = type });\n            }\n\n            foreach(var type in new[] { \"count\", \"min\", \"max\" }) {\n                list.Add(new SummaryInfo { Selector = PROP_DATE, SummaryType = type });\n                list.Add(new SummaryInfo { Selector = PROP_NULL_DATE, SummaryType = type });\n            }\n\n            return list.ToArray();\n        }\n\n    }\n\n}\n",
+    "contentPreview": "using System;\nusing System.Collections.Generic;\nusing System.Linq;\nusing Xunit;\n\nnamespace DevExtreme.AspNet.Data.Tests {\n\n    public static class RemoteGroupingStressHelper {\n        const string PROP_NUM = nameof(IEntity.Num);\n        const string PROP_NULL_NUM = nameof(IEntity.NullNum);\n        const string PROP_DATE = nameof(IEntity.Date);\n        const string PROP_NULL_DATE = nameof(IEntity.NullDate);\n#if EFCORE8 || EFCORE9\n        const string PROP_DATE_ONLY = nameof(IEntity.DateO);\n#endif",
+    "relatedClasses": [
+      "RemoteGroupingStressHelper"
+    ],
+    "relatedMethods": [],
+    "description": "",
+    "fetchedAt": "2026-01-19T17:58:15.109Z"
+  },
+  {
+    "id": "DevExpress/DevExtreme.AspNet.Data:net/DevExtreme.AspNet.Data.Tests.Common/SampleLoadOptions.cs",
+    "type": "code-file",
+    "title": "SampleLoadOptions",
+    "filePath": "net/DevExtreme.AspNet.Data.Tests.Common/SampleLoadOptions.cs",
+    "repoName": "DevExpress/DevExtreme.AspNet.Data",
+    "repoUrl": "https://github.com/DevExpress/DevExtreme.AspNet.Data",
+    "fileUrl": "https://github.com/DevExpress/DevExtreme.AspNet.Data/blob/main/net/DevExtreme.AspNet.Data.Tests.Common/SampleLoadOptions.cs",
+    "language": "csharp",
+    "content": "using System;\nusing System.Collections.Generic;\nusing System.Linq;\nusing System.Threading.Tasks;\n\nnamespace DevExtreme.AspNet.Data.Tests {\n\n    public class SampleLoadOptions : DataSourceLoadOptionsBase {\n        public List<string> ExpressionLog = new List<string>();\n\n        public SampleLoadOptions() {\n            UseEnumerableOnce = true;\n            ExpressionWatcher = x => ExpressionLog.Add(x.ToString());\n        }\n\n    }\n\n}\n",
+    "contentPreview": "using System;\nusing System.Collections.Generic;\nusing System.Linq;\nusing System.Threading.Tasks;\n\nnamespace DevExtreme.AspNet.Data.Tests {\n\n    public class SampleLoadOptions : DataSourceLoadOptionsBase {\n        public List<string> ExpressionLog = new List<string>();\n\n        public SampleLoadOptions() {\n            UseEnumerableOnce = true;\n            ExpressionWatcher = x => ExpressionLog.Add(x.ToString());\n        }\n\n    }\n\n}\n",
+    "relatedClasses": [
+      "SampleLoadOptions"
+    ],
+    "relatedMethods": [
+      "SampleLoadOptions"
+    ],
+    "description": "",
+    "fetchedAt": "2026-01-19T17:58:15.520Z"
+  },
+  {
+    "id": "DevExpress/DevExtreme.AspNet.Data:net/DevExtreme.AspNet.Data.Tests.Common/SqlServerTestDbHelper.cs",
+    "type": "code-file",
+    "title": "SqlServerTestDbHelper",
+    "filePath": "net/DevExtreme.AspNet.Data.Tests.Common/SqlServerTestDbHelper.cs",
+    "repoName": "DevExpress/DevExtreme.AspNet.Data",
+    "repoUrl": "https://github.com/DevExpress/DevExtreme.AspNet.Data",
+    "fileUrl": "https://github.com/DevExpress/DevExtreme.AspNet.Data/blob/main/net/DevExtreme.AspNet.Data.Tests.Common/SqlServerTestDbHelper.cs",
+    "language": "csharp",
+    "content": "using System.Data.SqlClient;\nusing System.IO;\nusing System.Reflection;\n\nnamespace DevExtreme.AspNet.Data.Tests {\n\n    public class SqlServerTestDbHelper {\n        const string LOCAL_DB = \"(localdb)\\\\MSSQLLocalDB\";\n\n        readonly string _dbName;\n        readonly string _dbFilePath;\n\n        public SqlServerTestDbHelper(string id) {\n            _dbName = $\"DevExtreme_AspNet_Data_Tests_{id}_DB\";\n            _dbFilePath = Path.Combine(\n                Path.GetDirectoryName(typeof(SqlServerTestDbHelper).GetTypeInfo().Assembly.Location),\n                _dbName + \".mdf\"\n            );\n        }\n\n        public string ConnectionString {\n            get { return $\"Data Source={LOCAL_DB}; AttachDbFileName={_dbFilePath}; Initial Catalog={_dbName}\"; }\n        }\n\n        public void ResetDatabase() {\n            // Possibly related: https://stackoverflow.com/a/46142857\n\n            using(var conn = new SqlConnection($\"Data Source={LOCAL_DB}\")) {\n                conn.Open();\n\n                void Exec(string sql) {\n#pragma warning disable DX0024 // this is assembly with tests\n                    using(var cmd = conn.CreateCommand()) {\n                        cmd.CommandText = sql;\n                        cmd.ExecuteNonQuery();\n                    }\n#pragma warning restore DX0024 // this is assembly with tests\n                }\n\n                try {\n                    Exec($\"drop database [{_dbName}]\");\n                } catch {\n                }\n\n                Exec($\"create database [{_dbName}] on (name='{_dbName}', filename='{_dbFilePath}')\");\n            }\n        }\n\n    }\n\n}\n",
+    "contentPreview": "using System.Data.SqlClient;\nusing System.IO;\nusing System.Reflection;\n\nnamespace DevExtreme.AspNet.Data.Tests {\n\n    public class SqlServerTestDbHelper {\n        const string LOCAL_DB = \"(localdb)\\\\MSSQLLocalDB\";\n\n        readonly string _dbName;\n        readonly string _dbFilePath;\n\n        public SqlServerTestDbHelper(string id) {\n            _dbName = $\"DevExtreme_AspNet_Data_Tests_{id}_DB\";\n            _dbFilePath = Path.Combine(\n                Path.GetDirectoryName(typeof(SqlServerTestDbH",
+    "relatedClasses": [
+      "SqlServerTestDbHelper"
+    ],
+    "relatedMethods": [
+      "SqlServerTestDbHelper",
+      "ResetDatabase",
+      "SqlConnection",
+      "Exec"
+    ],
+    "description": "Possibly related: https:stackoverflow.com/a/46142857",
+    "fetchedAt": "2026-01-19T17:58:15.941Z"
+  },
+  {
+    "id": "DevExpress/DevExtreme.AspNet.Data:net/DevExtreme.AspNet.Data.Tests.Common/SummaryTestHelper.cs",
+    "type": "code-file",
+    "title": "SummaryTestHelper",
+    "filePath": "net/DevExtreme.AspNet.Data.Tests.Common/SummaryTestHelper.cs",
+    "repoName": "DevExpress/DevExtreme.AspNet.Data",
+    "repoUrl": "https://github.com/DevExpress/DevExtreme.AspNet.Data",
+    "fileUrl": "https://github.com/DevExpress/DevExtreme.AspNet.Data/blob/main/net/DevExtreme.AspNet.Data.Tests.Common/SummaryTestHelper.cs",
+    "language": "csharp",
+    "content": "using DevExtreme.AspNet.Data.ResponseModel;\nusing System;\nusing System.Collections.Generic;\nusing System.Linq;\nusing System.Text;\nusing Xunit;\n\nnamespace DevExtreme.AspNet.Data.Tests {\n\n    public static class SummaryTestHelper {\n\n        public interface IEntity {\n            string Group1 { get; set; }\n            string Group2 { get; set; }\n            int? Value { get; set; }\n        }\n\n        public static IEnumerable<T> GenerateTestData<T>(Func<T> itemFactory) where T : IEntity {\n            T CreateItem(string group1, string group2, int? value) {\n                var item = itemFactory();\n                item.Group1 = group1;\n                item.Group2 = group2;\n                item.Value = value;\n                return item;\n            }\n\n            return new[] {\n                CreateItem(\"A\", \"A\", null),\n                CreateItem(\"A\", \"A\", 1),\n                CreateItem(\"A\", \"B\", 3),\n                CreateItem(\"A\", \"B\", 5),\n                CreateItem(\"B\", \"A\", null),\n            };\n        }\n\n        public static void Run<T>(IQueryable<T> data) where T : IEntity {\n            if(Compat.CanUseRemoteAvg(data.Provider)) {\n                RunCore(data, new[] { \"count\", \"min\", \"max\", \"sum\", \"avg\" });\n            } else {\n                RunCore(data, new[] { \"count\", \"min\", \"max\", \"sum\" });\n                RunCore(data, new[] { \"avg\" });\n            }\n        }\n\n        static void RunCore<T>(IQueryable<T> data, string[] summaryTypes) where T : IEntity {\n            var group = Array.ConvertAll(\n                new[] { nameof(IEntity.Group1), nameof(IEntity.Group2) },\n                i => new GroupingInfo {\n                    Selector = i,\n                    IsExpanded = false\n                }\n            );\n\n            var summary = Array.ConvertAll(\n                summaryTypes,\n                i => new SummaryInfo {\n                    Selector = nameof(IEntity.Value),\n                    SummaryType = i\n                }\n            );\n\n            var loadOptions = new SampleLoadOptions {\n                Group = group,\n                GroupSummary = summary,\n                TotalSummary = summary\n            };\n\n            object[] CreateExpectation(int count, int? min, int? max, decimal? sum, decimal? avg) {\n                var list = new List<object>();\n                foreach(var i in summaryTypes) {\n                    switch(i) {\n                        case \"count\":\n                            list.Add(count);\n                            break;\n                        case \"min\":\n                            list.Add(min);\n                            break;\n                        case \"max\":\n                            list.Add(max);\n                            break;\n                        case \"sum\":\n                            list.Add(sum);\n                            break;\n                        case \"avg\":\n                            list.Add(avg);\n                            break;\n                    }\n                }\n                return list.ToArray();\n            }\n\n            {\n                var loadResult = DataSourceLoader.Load(data, loadOptions);\n                var rootItems = (IList<Group>)loadResult.data;\n\n                var group_A = rootItems[0];\n                var group_B = rootItems[1];\n\n                var group_A_A = (Group)group_A.items[0];\n                var group_A_B = (Group)group_A.items[1];\n                var group_B_A = (Group)group_B.items[0];\n\n                Assert.Equal(CreateExpectation(4, 1, 5, 9m, 3m), group_A.summary);\n                Assert.Equal(CreateExpectation(2, 1, 1, 1m, 1m), group_A_A.summary);\n                Assert.Equal(CreateExpectation(2, 3, 5, 8m, 4m), group_A_B.summary);\n\n                Assert.Equal(CreateExpectation(1, null, null, 0m, null), group_B.summary);\n                Assert.Equal(CreateExpectation(1, null, null, 0m, null), group_B_A.summary);\n\n                Assert.Equal(CreateExpectation(5, 1, 5, 9m, 3m), loadResult.summary);\n            }\n\n            loadOptions.Filter = new[] { nameof(IEntity.Group1), \"nonexistent\" };\n\n            {\n                var loadResult = DataSourceLoader.Load(data, loadOptions);\n                Assert.Equal(CreateExpectation(0, null, null, 0m, null), loadResult.summary);\n            }\n        }\n\n        /*\n\n            A           Count=4, Min=1, Max=5, Sum=9, Avg=3\n                A       Count=2, Min=1, Max=1, Sum=1, Avg=1\n                    N\n                    1\n                B       Count=2, Min=3, Max=5, Sum=8, Avg=4\n                    3\n                    5\n            B           Count=1, Min=N, Max=N, Sum=0*, Avg=N\n                A       Count=1, Min=N, Max=N, Sum=0*, Avg=N\n                    N\n\n            TOTALS:     Count=5, Min=1, Max=5, Sum=9, Avg=3\n            * - see SumFix\n        */\n\n    }\n\n}\n",
+    "contentPreview": "using DevExtreme.AspNet.Data.ResponseModel;\nusing System;\nusing System.Collections.Generic;\nusing System.Linq;\nusing System.Text;\nusing Xunit;\n\nnamespace DevExtreme.AspNet.Data.Tests {\n\n    public static class SummaryTestHelper {\n\n        public interface IEntity {\n            string Group1 { get; set; }\n            string Group2 { get; set; }\n            int? Value { get; set; }\n        }\n\n        public static IEnumerable<T> GenerateTestData<T>(Func<T> itemFactory) where T : IEntity {\n        ",
+    "relatedClasses": [
+      "SummaryTestHelper"
+    ],
+    "relatedMethods": [
+      "CreateItem"
+    ],
+    "description": "",
+    "fetchedAt": "2026-01-19T17:58:16.354Z"
+  },
+  {
+    "id": "DevExpress/DevExtreme.AspNet.Data:net/DevExtreme.AspNet.Data.Tests.EF6/AssemblyInfo.cs",
+    "type": "code-file",
+    "title": "AssemblyInfo",
+    "filePath": "net/DevExtreme.AspNet.Data.Tests.EF6/AssemblyInfo.cs",
+    "repoName": "DevExpress/DevExtreme.AspNet.Data",
+    "repoUrl": "https://github.com/DevExpress/DevExtreme.AspNet.Data",
+    "fileUrl": "https://github.com/DevExpress/DevExtreme.AspNet.Data/blob/main/net/DevExtreme.AspNet.Data.Tests.EF6/AssemblyInfo.cs",
+    "language": "csharp",
+    "content": "using Xunit;\n\n[assembly: CollectionBehavior(DisableTestParallelization = true)]\n",
+    "contentPreview": "using Xunit;\n\n[assembly: CollectionBehavior(DisableTestParallelization = true)]\n",
+    "relatedClasses": [],
+    "relatedMethods": [],
+    "description": "",
+    "fetchedAt": "2026-01-19T17:58:16.775Z"
+  },
+  {
+    "id": "DevExpress/DevExtreme.AspNet.Data:net/DevExtreme.AspNet.Data.Tests.EF6/Async.cs",
+    "type": "code-file",
+    "title": "Async",
+    "filePath": "net/DevExtreme.AspNet.Data.Tests.EF6/Async.cs",
+    "repoName": "DevExpress/DevExtreme.AspNet.Data",
+    "repoUrl": "https://github.com/DevExpress/DevExtreme.AspNet.Data",
+    "fileUrl": "https://github.com/DevExpress/DevExtreme.AspNet.Data/blob/main/net/DevExtreme.AspNet.Data.Tests.EF6/Async.cs",
+    "language": "csharp",
+    "content": "using System;\nusing System.Linq;\nusing System.Threading.Tasks;\nusing Xunit;\n\nnamespace DevExtreme.AspNet.Data.Tests.EF6 {\n    using DataItem = Async_DataItem;\n\n    public class Async_DataItem : AsyncTestHelper.IDataItem {\n        public int ID { get; set; }\n        public int Value { get; set; }\n    }\n\n    public class Async {\n\n        [Fact]\n        public async Task Scenario() {\n            await TestDbContext.ExecAsync(async context => {\n                var set = context.Set<DataItem>();\n                set.AddRange(AsyncTestHelper.CreateTestData(() => new DataItem()));\n                await context.SaveChangesAsync();\n\n                await AsyncTestHelper.RunAsync(set);\n\n                await AsyncTestHelper.RunAsync(LinqKit.Extensions.AsExpandable(set));\n            });\n        }\n\n    }\n\n}\n",
+    "contentPreview": "using System;\nusing System.Linq;\nusing System.Threading.Tasks;\nusing Xunit;\n\nnamespace DevExtreme.AspNet.Data.Tests.EF6 {\n    using DataItem = Async_DataItem;\n\n    public class Async_DataItem : AsyncTestHelper.IDataItem {\n        public int ID { get; set; }\n        public int Value { get; set; }\n    }\n\n    public class Async {\n\n        [Fact]\n        public async Task Scenario() {\n            await TestDbContext.ExecAsync(async context => {\n                var set = context.Set<DataItem>();\n    ",
+    "relatedClasses": [
+      "Async_DataItem",
+      "Async"
+    ],
+    "relatedMethods": [
+      "Scenario",
+      "DataItem"
+    ],
+    "description": "",
+    "fetchedAt": "2026-01-19T17:58:17.203Z"
+  },
+  {
+    "id": "DevExpress/DevExtreme.AspNet.Data:net/DevExtreme.AspNet.Data.Tests.EF6/Bug112.cs",
+    "type": "code-file",
+    "title": "Bug112",
+    "filePath": "net/DevExtreme.AspNet.Data.Tests.EF6/Bug112.cs",
+    "repoName": "DevExpress/DevExtreme.AspNet.Data",
+    "repoUrl": "https://github.com/DevExpress/DevExtreme.AspNet.Data",
+    "fileUrl": "https://github.com/DevExpress/DevExtreme.AspNet.Data/blob/main/net/DevExtreme.AspNet.Data.Tests.EF6/Bug112.cs",
+    "language": "csharp",
+    "content": "using System;\nusing System.Collections.Generic;\nusing System.ComponentModel.DataAnnotations;\nusing System.ComponentModel.DataAnnotations.Schema;\nusing System.Linq;\nusing System.Text;\nusing System.Threading.Tasks;\nusing Xunit;\n\nnamespace DevExtreme.AspNet.Data.Tests.EF6 {\n    using DataItem = Bug112_DataItem;\n\n    class Bug112_DataItem {\n        public int ID { get; set; }\n        public TimeSpan? Duration { get; set; }\n    }\n\n    public class Bug112 {\n\n        [Fact]\n        public async Task Scenario() {\n            await TestDbContext.ExecAsync(context => {\n                var dbSet = context.Set<DataItem>();\n\n                dbSet.AddRange(new[] {\n                    new DataItem { Duration = TimeSpan.Parse(\"01:23\") },\n                    new DataItem { Duration = TimeSpan.Parse(\"02:23\") },\n                    new DataItem { Duration = TimeSpan.Zero }\n                });\n\n                context.SaveChanges();\n\n                var loadResult = DataSourceLoader.Load(dbSet, new SampleLoadOptions {\n                    Filter = new[] { \"Duration\", \"contains\", \"23\" }\n                });\n\n                var data = (IEnumerable<DataItem>)loadResult.data;\n                Assert.Equal(2, data.Count());\n            });\n        }\n\n    }\n\n}\n",
+    "contentPreview": "using System;\nusing System.Collections.Generic;\nusing System.ComponentModel.DataAnnotations;\nusing System.ComponentModel.DataAnnotations.Schema;\nusing System.Linq;\nusing System.Text;\nusing System.Threading.Tasks;\nusing Xunit;\n\nnamespace DevExtreme.AspNet.Data.Tests.EF6 {\n    using DataItem = Bug112_DataItem;\n\n    class Bug112_DataItem {\n        public int ID { get; set; }\n        public TimeSpan? Duration { get; set; }\n    }\n\n    public class Bug112 {\n\n        [Fact]\n        public async Task Sc",
+    "relatedClasses": [
+      "Bug112_DataItem",
+      "Bug112"
+    ],
+    "relatedMethods": [
+      "Scenario"
+    ],
+    "description": "",
+    "fetchedAt": "2026-01-19T17:58:17.639Z"
+  },
+  {
+    "id": "DevExpress/DevExtreme.AspNet.Data:net/DevExtreme.AspNet.Data.Tests.EF6/Bug179.cs",
+    "type": "code-file",
+    "title": "Bug179",
+    "filePath": "net/DevExtreme.AspNet.Data.Tests.EF6/Bug179.cs",
+    "repoName": "DevExpress/DevExtreme.AspNet.Data",
+    "repoUrl": "https://github.com/DevExpress/DevExtreme.AspNet.Data",
+    "fileUrl": "https://github.com/DevExpress/DevExtreme.AspNet.Data/blob/main/net/DevExtreme.AspNet.Data.Tests.EF6/Bug179.cs",
+    "language": "csharp",
+    "content": "using System;\nusing System.ComponentModel.DataAnnotations;\nusing System.Linq;\nusing System.Threading.Tasks;\nusing Xunit;\n\nnamespace DevExtreme.AspNet.Data.Tests.EF6 {\n    using DataItem = Bug179_DataItem;\n\n    class Bug179_DataItem {\n        public int ID { get; set; }\n        public string Group { get; set; }\n        public int? Value { get; set; }\n    }\n\n    public class Bug179 {\n\n        [Fact]\n        public async Task Scenario() {\n            await TestDbContext.ExecAsync(context => {\n                var dbSet = context.Set<DataItem>();\n\n                dbSet.AddRange(new[] {\n                    new DataItem { Group = \"A\", Value = 1 },\n                    new DataItem { Group = \"A\", Value = 3 },\n                    new DataItem { Group = \"A\", Value = null },\n                    new DataItem { Group = \"B\", Value = 5 },\n                    new DataItem { Group = \"B\", Value = null },\n                });\n\n                context.SaveChanges();\n\n                var loadResult = DataSourceLoader.Load(dbSet, new SampleLoadOptions {\n                    Group = new[] {\n                        new GroupingInfo { Selector = \"Group\", IsExpanded = false }\n                    },\n                    GroupSummary = new[] {\n                        new SummaryInfo { SummaryType = \"avg\", Selector = \"Value\" },\n                        new SummaryInfo { SummaryType = \"count\" },\n                        new SummaryInfo { SummaryType = \"sum\", Selector = \"Value\" }\n                    },\n                    TotalSummary = new[] {\n                        new SummaryInfo { SummaryType = \"sum\", Selector = \"Value\" },\n                        new SummaryInfo { SummaryType = \"count\" },\n                        new SummaryInfo { SummaryType = \"avg\", Selector = \"Value\" }\n                    }\n                });\n\n                var loadResultGroups = loadResult.data.Cast<ResponseModel.Group>().ToArray();\n\n                var referenceGroups = dbSet\n                    .GroupBy(i => i.Group)\n                    .OrderBy(g => g.Key)\n                    .Select(g => new {\n                        Avg = g.Average(i => i.Value),\n                        Count = g.Count(),\n                        Sum = g.Sum(i => i.Value)\n                    })\n                    .ToArray();\n\n                for(var g = 0; g < 2; g++) {\n                    Assert.Equal((decimal)referenceGroups[g].Avg, loadResultGroups[g].summary[0]);\n                    Assert.Equal(referenceGroups[g].Count, loadResultGroups[g].summary[1]);\n                    Assert.Equal((decimal)referenceGroups[g].Sum, loadResultGroups[g].summary[2]);\n                }\n\n                Assert.Equal((decimal)dbSet.Sum(i => i.Value), loadResult.summary[0]);\n                Assert.Equal(dbSet.Count(), loadResult.summary[1]);\n                Assert.Equal((decimal)dbSet.Average(i => i.Value), loadResult.summary[2]);\n            });\n        }\n\n    }\n\n\n}\n",
+    "contentPreview": "using System;\nusing System.ComponentModel.DataAnnotations;\nusing System.Linq;\nusing System.Threading.Tasks;\nusing Xunit;\n\nnamespace DevExtreme.AspNet.Data.Tests.EF6 {\n    using DataItem = Bug179_DataItem;\n\n    class Bug179_DataItem {\n        public int ID { get; set; }\n        public string Group { get; set; }\n        public int? Value { get; set; }\n    }\n\n    public class Bug179 {\n\n        [Fact]\n        public async Task Scenario() {\n            await TestDbContext.ExecAsync(context => {\n     ",
+    "relatedClasses": [
+      "Bug179_DataItem",
+      "Bug179"
+    ],
+    "relatedMethods": [
+      "Scenario"
+    ],
+    "description": "",
+    "fetchedAt": "2026-01-19T17:58:18.044Z"
+  },
+  {
+    "id": "DevExpress/DevExtreme.AspNet.Data:net/DevExtreme.AspNet.Data.Tests.EF6/Bug184.cs",
+    "type": "code-file",
+    "title": "Bug184",
+    "filePath": "net/DevExtreme.AspNet.Data.Tests.EF6/Bug184.cs",
+    "repoName": "DevExpress/DevExtreme.AspNet.Data",
+    "repoUrl": "https://github.com/DevExpress/DevExtreme.AspNet.Data",
+    "fileUrl": "https://github.com/DevExpress/DevExtreme.AspNet.Data/blob/main/net/DevExtreme.AspNet.Data.Tests.EF6/Bug184.cs",
+    "language": "csharp",
+    "content": "using System;\nusing System.ComponentModel.DataAnnotations;\nusing System.Linq;\nusing System.Threading.Tasks;\nusing Xunit;\n\nnamespace DevExtreme.AspNet.Data.Tests.EF6 {\n    using DataItem = Bug184_DataItem;\n\n    class Bug184_DataItem {\n        public int ID { get; set; }\n\n        // overload exists\n        public Int32 Int32 { get; set; }\n\n        // convert required\n        public Byte? NullableByte { get; set; }\n    }\n\n    public class Bug184 {\n\n        [Fact]\n        public async Task Scenario() {\n            await TestDbContext.ExecAsync(context => {\n                var dbSet = context.Set<DataItem>();\n\n                dbSet.Add(new DataItem { Int32 = 1, NullableByte = 1 });\n                dbSet.Add(new DataItem { Int32 = 2, NullableByte = 2 });\n\n                context.SaveChanges();\n\n                var loadResult = DataSourceLoader.Load(dbSet, new SampleLoadOptions {\n                    TotalSummary = new[] {\n                        new SummaryInfo { SummaryType = \"sum\", Selector = nameof(DataItem.Int32) },\n                        new SummaryInfo { SummaryType = \"sum\", Selector = nameof(DataItem.NullableByte) }\n                    }\n                });\n\n                Assert.Equal(\n                    new object[] { 3m, 3m },\n                    loadResult.summary\n                );\n\n            });\n        }\n\n    }\n}\n",
+    "contentPreview": "using System;\nusing System.ComponentModel.DataAnnotations;\nusing System.Linq;\nusing System.Threading.Tasks;\nusing Xunit;\n\nnamespace DevExtreme.AspNet.Data.Tests.EF6 {\n    using DataItem = Bug184_DataItem;\n\n    class Bug184_DataItem {\n        public int ID { get; set; }\n\n        // overload exists\n        public Int32 Int32 { get; set; }\n\n        // convert required\n        public Byte? NullableByte { get; set; }\n    }\n\n    public class Bug184 {\n\n        [Fact]\n        public async Task Scenario(",
+    "relatedClasses": [
+      "Bug184_DataItem",
+      "Bug184"
+    ],
+    "relatedMethods": [
+      "Scenario"
+    ],
+    "description": "overload exists convert required",
+    "fetchedAt": "2026-01-19T17:58:18.466Z"
+  },
+  {
+    "id": "DevExpress/DevExtreme.AspNet.Data:net/DevExtreme.AspNet.Data.Tests.EF6/Bug235.cs",
+    "type": "code-file",
+    "title": "Bug235",
+    "filePath": "net/DevExtreme.AspNet.Data.Tests.EF6/Bug235.cs",
+    "repoName": "DevExpress/DevExtreme.AspNet.Data",
+    "repoUrl": "https://github.com/DevExpress/DevExtreme.AspNet.Data",
+    "fileUrl": "https://github.com/DevExpress/DevExtreme.AspNet.Data/blob/main/net/DevExtreme.AspNet.Data.Tests.EF6/Bug235.cs",
+    "language": "csharp",
+    "content": "using System;\nusing System.Collections;\nusing System.Collections.Generic;\nusing System.ComponentModel.DataAnnotations.Schema;\nusing System.Linq;\nusing System.Threading.Tasks;\nusing Xunit;\n\nnamespace DevExtreme.AspNet.Data.Tests.EF6 {\n    using DataItem = Bug235_DataItem;\n\n    class Bug235_DataItem {\n        [DatabaseGenerated(DatabaseGeneratedOption.None)]\n        public int ID { get; set; }\n        public int Prop { get; set; }\n    }\n\n    public class Bug235 {\n\n        [Fact]\n        public async Task Scenario() {\n            await TestDbContext.ExecAsync(context => {\n                var dbSet = context.Set<DataItem>();\n\n                dbSet.Add(new DataItem { ID = 1, Prop = 0 });\n                dbSet.Add(new DataItem { ID = 2, Prop = 2 });\n                dbSet.Add(new DataItem { ID = 0, Prop = 1 });\n                context.SaveChanges();\n\n                var projection = dbSet.Select(i => new { i.ID, i.Prop });\n\n                // Default settings: auto-sort by first sortable member (ID)\n                {\n                    var loadResult = DataSourceLoader.Load(projection, new SampleLoadOptions {\n                        Skip = 1,\n                        Take = 99\n                    });\n\n                    var data = ImplicitCast(projection, loadResult.data);\n\n                    Assert.Equal(\n                        new[] { 1, 2 },\n                        data.Select(i => i.ID)\n                    );\n                }\n\n                // User-provided DefaultSort\n                {\n                    var loadResult = DataSourceLoader.Load(projection, new SampleLoadOptions {\n                        Skip = 1,\n                        Take = 999,\n                        DefaultSort = \"Prop\"\n                    });\n\n                    var data = ImplicitCast(projection, loadResult.data);\n\n                    Assert.Equal(\n                        new[] { 1, 2 },\n                        data.Select(i => i.Prop)\n                    );\n                }\n            });\n        }\n\n        IEnumerable<T> ImplicitCast<T>(IEnumerable<T> typeReference, IEnumerable data) {\n            return data.Cast<T>();\n        }\n\n    }\n\n}\n",
+    "contentPreview": "using System;\nusing System.Collections;\nusing System.Collections.Generic;\nusing System.ComponentModel.DataAnnotations.Schema;\nusing System.Linq;\nusing System.Threading.Tasks;\nusing Xunit;\n\nnamespace DevExtreme.AspNet.Data.Tests.EF6 {\n    using DataItem = Bug235_DataItem;\n\n    class Bug235_DataItem {\n        [DatabaseGenerated(DatabaseGeneratedOption.None)]\n        public int ID { get; set; }\n        public int Prop { get; set; }\n    }\n\n    public class Bug235 {\n\n        [Fact]\n        public asy",
+    "relatedClasses": [
+      "Bug235_DataItem",
+      "Bug235"
+    ],
+    "relatedMethods": [
+      "Scenario",
+      "member"
+    ],
+    "description": "",
+    "fetchedAt": "2026-01-19T17:58:18.917Z"
+  },
+  {
+    "id": "DevExpress/DevExtreme.AspNet.Data:net/DevExtreme.AspNet.Data.Tests.EF6/Bug239.cs",
+    "type": "code-file",
+    "title": "Bug239",
+    "filePath": "net/DevExtreme.AspNet.Data.Tests.EF6/Bug239.cs",
+    "repoName": "DevExpress/DevExtreme.AspNet.Data",
+    "repoUrl": "https://github.com/DevExpress/DevExtreme.AspNet.Data",
+    "fileUrl": "https://github.com/DevExpress/DevExtreme.AspNet.Data/blob/main/net/DevExtreme.AspNet.Data.Tests.EF6/Bug239.cs",
+    "language": "csharp",
+    "content": "using DevExtreme.AspNet.Data.ResponseModel;\nusing System;\nusing System.Linq;\nusing System.Threading.Tasks;\nusing Xunit;\n\nnamespace DevExtreme.AspNet.Data.Tests.EF6 {\n    using DataItem = Bug239_DataItem;\n\n    class Bug239_DataItem {\n        public int ID { get; set; }\n        public DateTime? OrderDate { get; set; }\n        public Decimal? Freight { get; set; }\n    }\n\n    public class Bug239 {\n\n        [Fact]\n        public async Task Scenario() {\n            await TestDbContext.ExecAsync(context => {\n                var dbSet = context.Set<DataItem>();\n\n                dbSet.Add(new DataItem());\n                dbSet.Add(new DataItem { OrderDate = new DateTime(2009, 9, 9), Freight = 199 });\n                context.SaveChanges();\n\n                var loadResult = DataSourceLoader.Load(dbSet, new SampleLoadOptions {\n                    Group = new[] {\n                        new GroupingInfo { Selector = \"OrderDate\", IsExpanded = false, GroupInterval = \"quarter\" },\n                        new GroupingInfo { Selector = \"Freight\", IsExpanded = false, GroupInterval = \"50\" }\n                    }\n                });\n\n                var groups = loadResult.data.Cast<Group>().ToArray();\n\n                Assert.Null(groups[0].key);\n                Assert.Null((groups[0].items[0] as Group).key);\n\n                Assert.Equal(3, groups[1].key);\n                Assert.Equal(150m, (groups[1].items[0] as Group).key);\n            });\n        }\n\n    }\n}\n",
+    "contentPreview": "using DevExtreme.AspNet.Data.ResponseModel;\nusing System;\nusing System.Linq;\nusing System.Threading.Tasks;\nusing Xunit;\n\nnamespace DevExtreme.AspNet.Data.Tests.EF6 {\n    using DataItem = Bug239_DataItem;\n\n    class Bug239_DataItem {\n        public int ID { get; set; }\n        public DateTime? OrderDate { get; set; }\n        public Decimal? Freight { get; set; }\n    }\n\n    public class Bug239 {\n\n        [Fact]\n        public async Task Scenario() {\n            await TestDbContext.ExecAsync(contex",
+    "relatedClasses": [
+      "Bug239_DataItem",
+      "Bug239"
+    ],
+    "relatedMethods": [
+      "Scenario",
+      "DataItem",
+      "DateTime"
+    ],
+    "description": "",
+    "fetchedAt": "2026-01-19T17:58:19.327Z"
+  },
+  {
+    "id": "DevExpress/DevExtreme.AspNet.Data:net/DevExtreme.AspNet.Data.Tests.EF6/Bug240.cs",
+    "type": "code-file",
+    "title": "Bug240",
+    "filePath": "net/DevExtreme.AspNet.Data.Tests.EF6/Bug240.cs",
+    "repoName": "DevExpress/DevExtreme.AspNet.Data",
+    "repoUrl": "https://github.com/DevExpress/DevExtreme.AspNet.Data",
+    "fileUrl": "https://github.com/DevExpress/DevExtreme.AspNet.Data/blob/main/net/DevExtreme.AspNet.Data.Tests.EF6/Bug240.cs",
+    "language": "csharp",
+    "content": "using System;\nusing System.Linq;\nusing System.Threading.Tasks;\nusing Xunit;\n\nnamespace DevExtreme.AspNet.Data.Tests.EF6 {\n    using DataItem = Bug240_DataItem;\n\n    class Bug240_DataItem {\n        public int ID { get; set; }\n        public DateTime? Date { get; set; }\n        public string Text { get; set; }\n    }\n\n    public class Bug240 {\n\n        [Fact]\n        public async Task Scenario() {\n            await TestDbContext.ExecAsync(context => {\n                var dbSet = context.Set<DataItem>();\n\n                dbSet.Add(new DataItem());\n                context.SaveChanges();\n\n                var loadResult = DataSourceLoader.Load(dbSet, new SampleLoadOptions {\n                    Select = new[] { \"Date.Year\", \"Text.Length\" }\n                });\n\n                var items = loadResult.data.Cast<dynamic>().ToArray();\n\n                Assert.Null(items[0].Date.Year);\n                Assert.Null(items[0].Text.Length);\n            });\n        }\n\n    }\n\n}\n",
+    "contentPreview": "using System;\nusing System.Linq;\nusing System.Threading.Tasks;\nusing Xunit;\n\nnamespace DevExtreme.AspNet.Data.Tests.EF6 {\n    using DataItem = Bug240_DataItem;\n\n    class Bug240_DataItem {\n        public int ID { get; set; }\n        public DateTime? Date { get; set; }\n        public string Text { get; set; }\n    }\n\n    public class Bug240 {\n\n        [Fact]\n        public async Task Scenario() {\n            await TestDbContext.ExecAsync(context => {\n                var dbSet = context.Set<DataIte",
+    "relatedClasses": [
+      "Bug240_DataItem",
+      "Bug240"
+    ],
+    "relatedMethods": [
+      "Scenario",
+      "DataItem"
+    ],
+    "description": "",
+    "fetchedAt": "2026-01-19T17:58:19.764Z"
+  },
+  {
+    "id": "DevExpress/DevExtreme.AspNet.Data:net/DevExtreme.AspNet.Data.Tests.EF6/ExpandLinqSumType.cs",
+    "type": "code-file",
+    "title": "ExpandLinqSumType",
+    "filePath": "net/DevExtreme.AspNet.Data.Tests.EF6/ExpandLinqSumType.cs",
+    "repoName": "DevExpress/DevExtreme.AspNet.Data",
+    "repoUrl": "https://github.com/DevExpress/DevExtreme.AspNet.Data",
+    "fileUrl": "https://github.com/DevExpress/DevExtreme.AspNet.Data/blob/main/net/DevExtreme.AspNet.Data.Tests.EF6/ExpandLinqSumType.cs",
+    "language": "csharp",
+    "content": "using System;\nusing System.Threading.Tasks;\nusing Xunit;\n\nnamespace DevExtreme.AspNet.Data.Tests.EF6 {\n    using DataItem = ExpandLinqSumType_DataItem;\n\n    class ExpandLinqSumType_DataItem : ExpandLinqSumTypeTestHelper.IEntity {\n        public int ID { get; set; }\n        public int? Int32Prop { get; set; }\n        public float? SingleProp { get; set; }\n    }\n\n    public class ExpandLinqSumType {\n\n        [Fact]\n        public async Task Scenario() {\n            await TestDbContext.ExecAsync(context => {\n                var dbSet = context.Set<DataItem>();\n\n                dbSet.AddRange(ExpandLinqSumTypeTestHelper.GenerateTestData(() => new DataItem()));\n                context.SaveChanges();\n\n                ExpandLinqSumTypeTestHelper.Run(dbSet);\n            });\n        }\n\n    }\n\n}\n",
+    "contentPreview": "using System;\nusing System.Threading.Tasks;\nusing Xunit;\n\nnamespace DevExtreme.AspNet.Data.Tests.EF6 {\n    using DataItem = ExpandLinqSumType_DataItem;\n\n    class ExpandLinqSumType_DataItem : ExpandLinqSumTypeTestHelper.IEntity {\n        public int ID { get; set; }\n        public int? Int32Prop { get; set; }\n        public float? SingleProp { get; set; }\n    }\n\n    public class ExpandLinqSumType {\n\n        [Fact]\n        public async Task Scenario() {\n            await TestDbContext.ExecAsync(co",
+    "relatedClasses": [
+      "ExpandLinqSumType_DataItem",
+      "ExpandLinqSumType"
+    ],
+    "relatedMethods": [
+      "Scenario",
+      "DataItem"
+    ],
+    "description": "",
+    "fetchedAt": "2026-01-19T17:58:20.191Z"
+  },
+  {
+    "id": "DevExpress/DevExtreme.AspNet.Data:net/DevExtreme.AspNet.Data.Tests.EF6/PaginateViaPrimaryKey.cs",
+    "type": "code-file",
+    "title": "PaginateViaPrimaryKey",
+    "filePath": "net/DevExtreme.AspNet.Data.Tests.EF6/PaginateViaPrimaryKey.cs",
+    "repoName": "DevExpress/DevExtreme.AspNet.Data",
+    "repoUrl": "https://github.com/DevExpress/DevExtreme.AspNet.Data",
+    "fileUrl": "https://github.com/DevExpress/DevExtreme.AspNet.Data/blob/main/net/DevExtreme.AspNet.Data.Tests.EF6/PaginateViaPrimaryKey.cs",
+    "language": "csharp",
+    "content": "using System;\nusing System.ComponentModel.DataAnnotations;\nusing System.Linq;\nusing System.Threading.Tasks;\nusing Xunit;\n\nnamespace DevExtreme.AspNet.Data.Tests.EF6 {\n\n    public class PaginateViaPrimaryKey_DataItem : PaginateViaPrimaryKeyTestHelper.IDataItem {\n        public int K1 { get; set; }\n        public long K2 { get; set; }\n    }\n\n    public class PaginateViaPrimaryKey {\n\n        [Fact]\n        public async Task Scenario() {\n            await TestDbContext.ExecAsync(context => {\n                var set = context.Set<PaginateViaPrimaryKey_DataItem>();\n                foreach(var i in PaginateViaPrimaryKeyTestHelper.CreateTestData<PaginateViaPrimaryKey_DataItem>())\n                    set.Add(i);\n                context.SaveChanges();\n\n                PaginateViaPrimaryKeyTestHelper.Run(set);\n                PaginateViaPrimaryKeyTestHelper.Run(set.Select(i => new { i.K1, i.K2 }));\n            });\n        }\n\n    }\n\n}\n",
+    "contentPreview": "using System;\nusing System.ComponentModel.DataAnnotations;\nusing System.Linq;\nusing System.Threading.Tasks;\nusing Xunit;\n\nnamespace DevExtreme.AspNet.Data.Tests.EF6 {\n\n    public class PaginateViaPrimaryKey_DataItem : PaginateViaPrimaryKeyTestHelper.IDataItem {\n        public int K1 { get; set; }\n        public long K2 { get; set; }\n    }\n\n    public class PaginateViaPrimaryKey {\n\n        [Fact]\n        public async Task Scenario() {\n            await TestDbContext.ExecAsync(context => {\n       ",
+    "relatedClasses": [
+      "PaginateViaPrimaryKey_DataItem",
+      "PaginateViaPrimaryKey"
+    ],
+    "relatedMethods": [
+      "Scenario"
+    ],
+    "description": "",
+    "fetchedAt": "2026-01-19T17:58:20.628Z"
+  },
+  {
+    "id": "DevExpress/DevExtreme.AspNet.Data:net/DevExtreme.AspNet.Data.Tests.EF6/RemoteGroupCount.cs",
+    "type": "code-file",
+    "title": "RemoteGroupCount",
+    "filePath": "net/DevExtreme.AspNet.Data.Tests.EF6/RemoteGroupCount.cs",
+    "repoName": "DevExpress/DevExtreme.AspNet.Data",
+    "repoUrl": "https://github.com/DevExpress/DevExtreme.AspNet.Data",
+    "fileUrl": "https://github.com/DevExpress/DevExtreme.AspNet.Data/blob/main/net/DevExtreme.AspNet.Data.Tests.EF6/RemoteGroupCount.cs",
+    "language": "csharp",
+    "content": "using System;\nusing System.Threading.Tasks;\nusing Xunit;\n\nnamespace DevExtreme.AspNet.Data.Tests.EF6 {\n    using DataItem = RemoteGroupCount_DataItem;\n\n    public class RemoteGroupCount_DataItem : RemoteGroupCountTestHelper.IEntity {\n        public int ID { get; set; }\n        public int G1 { get; set; }\n        public int G2 { get; set; }\n    }\n\n    public class RemoteGroupCount {\n\n        [Fact]\n        public async Task Scenario() {\n            await TestDbContext.ExecAsync(context => {\n                var dbSet = context.Set<DataItem>();\n\n                dbSet.AddRange(RemoteGroupCountTestHelper.GenerateTestData(() => new DataItem()));\n                context.SaveChanges();\n\n                RemoteGroupCountTestHelper.Run(dbSet);\n            });\n        }\n\n    }\n\n}\n",
+    "contentPreview": "using System;\nusing System.Threading.Tasks;\nusing Xunit;\n\nnamespace DevExtreme.AspNet.Data.Tests.EF6 {\n    using DataItem = RemoteGroupCount_DataItem;\n\n    public class RemoteGroupCount_DataItem : RemoteGroupCountTestHelper.IEntity {\n        public int ID { get; set; }\n        public int G1 { get; set; }\n        public int G2 { get; set; }\n    }\n\n    public class RemoteGroupCount {\n\n        [Fact]\n        public async Task Scenario() {\n            await TestDbContext.ExecAsync(context => {\n     ",
+    "relatedClasses": [
+      "RemoteGroupCount_DataItem",
+      "RemoteGroupCount"
+    ],
+    "relatedMethods": [
+      "Scenario",
+      "DataItem"
+    ],
+    "description": "",
+    "fetchedAt": "2026-01-19T17:58:21.046Z"
+  }
+]

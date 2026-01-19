@@ -1,13 +1,11 @@
 {
   "startUrl": "https://docs.devexpress.com/AspNetBootstrap/117864/aspnet-bootstrap-controls",
-  "maxPages": 10000,
-  "delayMs": 300,
-  "indexedCount": 500,
-  "visitedCount": 500,
+  "maxPages": 10,
+  "delayMs": 200,
+  "indexedCount": 10,
+  "visitedCount": 10,
   "failureCount": 0,
-  "lastRefresh": "2026-01-19T13:00:00.000Z",
+  "lastRefresh": "2026-01-19T17:53:20.115Z",
   "allowedHost": "docs.devexpress.com",
-  "allowedPathPrefix": "/AspNetBootstrap/",
-  "isStarterIndex": true,
-  "note": "This is a starter index with 500 essential pages. Users can run 'npm run crawl' to expand the index."
+  "allowedPathPrefix": "/AspNetBootstrap/"
 }

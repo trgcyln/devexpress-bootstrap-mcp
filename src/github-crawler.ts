@@ -1,9 +1,13 @@
-import { readFileSync, writeFileSync, existsSync } from 'fs';
-import { dirname } from 'path';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
 
-const DATA_DIR = './data';
-const GITHUB_EXAMPLES_FILE = `${DATA_DIR}/github-examples.json`;
-const GITHUB_META_FILE = `${DATA_DIR}/github-meta.json`;
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const PROJECT_ROOT = join(__dirname, '..');
+const DATA_DIR = join(PROJECT_ROOT, 'data');
+const GITHUB_EXAMPLES_FILE = join(DATA_DIR, 'github-examples.json');
+const GITHUB_META_FILE = join(DATA_DIR, 'github-meta.json');
 
 export interface GitHubExample {
   id: string;
@@ -13,12 +17,12 @@ export interface GitHubExample {
   repoName: string;
   repoUrl: string;
   fileUrl: string;
-  language: string; // 'csharp', 'aspx', 'ascx'
-  content: string; // truncated code
-  contentPreview: string; // first 500 chars
-  relatedClasses: string[]; // class names mentioned
-  relatedMethods: string[]; // method names
-  description: string; // from comments or readme
+  language: string;
+  content: string;
+  contentPreview: string;
+  relatedClasses: string[];
+  relatedMethods: string[];
+  description: string;
   fetchedAt: string;
 }
 
@@ -33,82 +37,122 @@ interface GitHubMetadata {
   }>;
 }
 
-// Common DevExpress example repositories
-const DEVEXPRESS_EXAMPLE_REPOS = [
-  'devexpress/devextreme-angular-template-gallery',
-  'devexpress/devextreme-react-template-gallery',
-  'devexpress/devextreme-vue-template-gallery',
-  'devexpress-examples/devextreme-examples',
-  'devexpress-examples/asp-net-bootstrap-examples',
-  'devexpress-examples/asp-net-core-free-ui-templates',
+// DevExpress repositories with ASP.NET Bootstrap examples
+const DEVEXPRESS_REPOS = [
+  { owner: 'DevExpress', repo: 'DevExtreme.AspNet.Data', paths: ['net'] },
+  { owner: 'DevExpress-Examples', repo: 'asp-net-web-forms-grid-view-batch-edit-mode', paths: [''] },
+  { owner: 'DevExpress-Examples', repo: 'asp-net-web-forms-grid-layout', paths: [''] },
+  { owner: 'DevExpress-Examples', repo: 'asp-net-bootstrap-controls-demos', paths: ['CS'] },
+  { owner: 'DevExpress-Examples', repo: 'aspnet-bootstrap-controls-how-to-get-started', paths: [''] },
+  { owner: 'DevExpress-Examples', repo: 'reporting-how-to-use-aspnet-webforms-bootstrap-web-report-viewer', paths: [''] },
 ];
 
-/**
- * Fetches raw content from GitHub using the API
- */
-async function fetchGitHubContent(
-  owner: string,
-  repo: string,
-  path: string,
-  token?: string
-): Promise<string | null> {
-  const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
-  const headers: Record<string, string> = {
-    Accept: 'application/vnd.github.v3.raw',
-  };
-
-  if (token) {
-    headers.Authorization = `token ${token}`;
-  }
-
-  try {
-    const response = await fetch(url, { headers });
-    if (!response.ok) return null;
-    return await response.text();
-  } catch (error) {
-    console.error(`Failed to fetch ${url}:`, error);
-    return null;
-  }
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 /**
- * Search GitHub API for C# files in a repository
+ * List files in a GitHub directory using Contents API
  */
-async function searchRepoFiles(
+async function listRepoContents(
   owner: string,
   repo: string,
-  language: string,
-  token?: string,
-  limit: number = 50
-): Promise<Array<{ path: string; url: string }>> {
-  const query = `repo:${owner}/${repo} language:${language}`;
-  const url = `https://api.github.com/search/code?q=${encodeURIComponent(query)}&per_page=${limit}`;
-
+  path: string = '',
+  token?: string
+): Promise<Array<{ path: string; type: string; download_url: string | null }>> {
+  const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
   const headers: Record<string, string> = {
     Accept: 'application/vnd.github.v3+json',
+    'User-Agent': 'DevExpress-MCP-Crawler/1.0',
   };
 
   if (token) {
-    headers.Authorization = `token ${token}`;
+    headers.Authorization = `Bearer ${token}`;
   }
 
   try {
     const response = await fetch(url, { headers });
     if (!response.ok) {
-      console.error(`GitHub API error: ${response.status} ${response.statusText}`);
+      const text = await response.text();
+      console.error(`GitHub API error for ${owner}/${repo}/${path}: ${response.status} - ${text.substring(0, 100)}`);
       return [];
     }
 
-    const data = (await response.json()) as { items?: Array<{ path: string; html_url: string }> };
-    return (
-      data.items?.map((item: { path: string; html_url: string }) => ({
-        path: item.path,
-        url: item.html_url,
-      })) || []
-    );
+    const data = await response.json();
+    if (!Array.isArray(data)) {
+      return [];
+    }
+
+    return data.map((item: any) => ({
+      path: item.path,
+      type: item.type,
+      download_url: item.download_url,
+    }));
   } catch (error) {
-    console.error('GitHub API search failed:', error);
+    console.error(`Error listing ${owner}/${repo}/${path}:`, error);
     return [];
+  }
+}
+
+/**
+ * Recursively find code files in a repository
+ */
+async function findCodeFiles(
+  owner: string,
+  repo: string,
+  basePath: string,
+  token?: string,
+  maxDepth: number = 3,
+  currentDepth: number = 0,
+  maxFiles: number = 50
+): Promise<Array<{ path: string; download_url: string }>> {
+  if (currentDepth > maxDepth) return [];
+
+  const contents = await listRepoContents(owner, repo, basePath, token);
+  const files: Array<{ path: string; download_url: string }> = [];
+
+  for (const item of contents) {
+    if (files.length >= maxFiles) break;
+
+    if (item.type === 'file') {
+      const ext = item.path.toLowerCase();
+      if (ext.endsWith('.cs') || ext.endsWith('.aspx') || ext.endsWith('.ascx') || ext.endsWith('.aspx.cs')) {
+        if (item.download_url) {
+          files.push({ path: item.path, download_url: item.download_url });
+        }
+      }
+    } else if (item.type === 'dir' && currentDepth < maxDepth) {
+      // Skip common non-code directories
+      const dirName = item.path.split('/').pop()?.toLowerCase() || '';
+      if (!['bin', 'obj', 'node_modules', '.git', 'packages', 'debug', 'release'].includes(dirName)) {
+        await sleep(100); // Rate limiting
+        const subFiles = await findCodeFiles(owner, repo, item.path, token, maxDepth, currentDepth + 1, maxFiles - files.length);
+        files.push(...subFiles);
+      }
+    }
+  }
+
+  return files;
+}
+
+/**
+ * Fetch raw file content
+ */
+async function fetchFileContent(downloadUrl: string, token?: string): Promise<string | null> {
+  const headers: Record<string, string> = {
+    'User-Agent': 'DevExpress-MCP-Crawler/1.0',
+  };
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  try {
+    const response = await fetch(downloadUrl, { headers });
+    if (!response.ok) return null;
+    return await response.text();
+  } catch (error) {
+    return null;
   }
 }
 
@@ -117,54 +161,58 @@ async function searchRepoFiles(
  */
 function extractMetadata(code: string): { classes: string[]; methods: string[] } {
   const classRegex = /\bclass\s+(\w+)/g;
-  const methodRegex = /\b(?:public|private|protected)?\s+\w+\s+(\w+)\s*\(/g;
+  const methodRegex = /\b(?:public|private|protected|internal)?\s*(?:static\s+)?(?:async\s+)?(?:override\s+)?(?:virtual\s+)?\w+\s+(\w+)\s*\(/g;
 
   const classes: string[] = [];
   const methods: string[] = [];
 
   let match;
   while ((match = classRegex.exec(code)) !== null) {
-    classes.push(match[1]);
+    if (!['class', 'new', 'return', 'public', 'private'].includes(match[1])) {
+      classes.push(match[1]);
+    }
   }
 
   while ((match = methodRegex.exec(code)) !== null) {
-    methods.push(match[1]);
+    if (!['if', 'for', 'while', 'switch', 'catch', 'using', 'new'].includes(match[1])) {
+      methods.push(match[1]);
+    }
   }
 
-  return { classes, methods };
+  return { classes: [...new Set(classes)], methods: [...new Set(methods)] };
 }
 
 /**
  * Extract description from code comments
  */
 function extractDescription(code: string): string {
-  const lines = code.split('\n').slice(0, 20);
+  const lines = code.split('\n').slice(0, 30);
   const comments = lines
-    .filter((line) => line.includes('//') || line.includes('/*') || line.includes('*'))
-    .map((line) => line.replace(/\/\*+|\*+\//g, '').replace(/^[\s/*]+/, '').trim())
-    .filter((line) => line.length > 0 && !line.includes('using'))
+    .filter((line) => line.includes('//') || line.includes('/*') || line.includes('*') || line.includes('///'))
+    .map((line) => line.replace(/\/\*+|\*+\//g, '').replace(/^[\s/*]+/, '').replace(/\/\/\/?/, '').trim())
+    .filter((line) => line.length > 5 && !line.includes('using') && !line.includes('namespace'))
     .join(' ');
 
-  return comments.substring(0, 200) || code.substring(0, 200);
+  return comments.substring(0, 300) || '';
 }
 
 /**
- * Index a single C# file
+ * Index a single file
  */
 async function indexFile(
   owner: string,
   repo: string,
   filePath: string,
-  fileUrl: string,
+  downloadUrl: string,
   token?: string
 ): Promise<GitHubExample | null> {
-  const content = await fetchGitHubContent(owner, repo, filePath, token);
+  const content = await fetchFileContent(downloadUrl, token);
 
-  if (!content || content.length === 0) {
+  if (!content || content.length < 50) {
     return null;
   }
 
-  // Limit content size for storage
+  // Limit content size
   const maxSize = 8000;
   const truncatedContent = content.substring(0, maxSize);
 
@@ -180,18 +228,18 @@ async function indexFile(
   const title = fileName.replace(/\.[^.]+$/, '').replace(/[_-]/g, ' ');
 
   return {
-    id: `${repo}:${filePath}`,
+    id: `${owner}/${repo}:${filePath}`,
     type: 'code-file',
     title,
     filePath,
-    repoName: repo,
+    repoName: `${owner}/${repo}`,
     repoUrl: `https://github.com/${owner}/${repo}`,
-    fileUrl,
+    fileUrl: `https://github.com/${owner}/${repo}/blob/main/${filePath}`,
     language,
     content: truncatedContent,
     contentPreview: truncatedContent.substring(0, 500),
-    relatedClasses: classes.slice(0, 10),
-    relatedMethods: methods.slice(0, 10),
+    relatedClasses: classes.slice(0, 15),
+    relatedMethods: methods.slice(0, 15),
     description,
     fetchedAt: new Date().toISOString(),
   };
@@ -205,7 +253,7 @@ export async function crawlGitHubExamples(options: {
   githubToken?: string;
   delayMs?: number;
 }): Promise<{ examples: GitHubExample[]; meta: GitHubMetadata }> {
-  const { maxFiles = 100, githubToken, delayMs = 100 } = options;
+  const { maxFiles = 100, githubToken, delayMs = 200 } = options;
 
   const examples: GitHubExample[] = [];
   const meta: GitHubMetadata = {
@@ -214,52 +262,51 @@ export async function crawlGitHubExamples(options: {
     repos: [],
   };
 
-  console.error(`[GitHub Crawler] Starting indexing of ${DEVEXPRESS_EXAMPLE_REPOS.length} repos...`);
+  console.error(`[GitHub Crawler] Starting indexing of ${DEVEXPRESS_REPOS.length} repos...`);
+  console.error(`[GitHub Crawler] Using token: ${githubToken ? 'Yes' : 'No'}`);
 
-  for (const repoPath of DEVEXPRESS_EXAMPLE_REPOS) {
-    const [owner, repo] = repoPath.split('/');
+  for (const { owner, repo, paths } of DEVEXPRESS_REPOS) {
+    if (examples.length >= maxFiles) break;
+
     console.error(`[GitHub Crawler] Indexing ${owner}/${repo}...`);
 
     let filesIndexed = 0;
-    const repoExamples: GitHubExample[] = [];
 
-    // Search for C# files
-    for (const lang of ['csharp', 'markup']) {
+    for (const basePath of paths) {
       if (examples.length >= maxFiles) break;
 
-      const files = await searchRepoFiles(owner, repo, lang, githubToken, 30);
+      const files = await findCodeFiles(owner, repo, basePath, githubToken, 3, 0, Math.min(20, maxFiles - examples.length));
 
       for (const file of files) {
         if (examples.length >= maxFiles) break;
 
-        const example = await indexFile(owner, repo, file.path, file.url, githubToken);
+        console.error(`[GitHub Crawler] Processing ${file.path}...`);
+
+        const example = await indexFile(owner, repo, file.path, file.download_url, githubToken);
         if (example) {
           examples.push(example);
-          repoExamples.push(example);
           filesIndexed++;
-          console.error(`[GitHub Crawler] Indexed ${file.path}`);
-
-          // Rate limiting
-          await new Promise((resolve) => setTimeout(resolve, delayMs));
         }
+
+        await sleep(delayMs);
       }
     }
 
     if (filesIndexed > 0) {
       meta.repos.push({
-        name: repo,
+        name: `${owner}/${repo}`,
         url: `https://github.com/${owner}/${repo}`,
         filesIndexed,
       });
+      console.error(`[GitHub Crawler] Indexed ${filesIndexed} files from ${owner}/${repo}`);
     }
 
-    // Delay between repos
-    await new Promise((resolve) => setTimeout(resolve, delayMs * 2));
+    await sleep(delayMs * 2);
   }
 
   meta.totalExamples = examples.length;
 
-  console.error(`[GitHub Crawler] Finished. Indexed ${examples.length} examples.`);
+  console.error(`[GitHub Crawler] Finished. Indexed ${examples.length} examples from ${meta.repos.length} repos.`);
 
   return { examples, meta };
 }
@@ -286,9 +333,8 @@ export function loadGitHubExamples(): GitHubExample[] {
  */
 export function saveGitHubExamples(examples: GitHubExample[], meta: GitHubMetadata): void {
   try {
-    // Ensure data dir exists
     if (!existsSync(DATA_DIR)) {
-      throw new Error(`Data directory not found: ${DATA_DIR}`);
+      mkdirSync(DATA_DIR, { recursive: true });
     }
 
     writeFileSync(GITHUB_EXAMPLES_FILE, JSON.stringify(examples, null, 2));
