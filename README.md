@@ -7,12 +7,13 @@
   <img src="https://img.shields.io/badge/Platform-Windows-lightgrey?style=for-the-badge" alt="Windows">
 </p>
 
-A **Model Context Protocol (MCP) server** that crawls and indexes the complete [DevExpress ASP.NET Bootstrap documentation](https://docs.devexpress.com/AspNetBootstrap/), providing **instant local search** for AI-assisted code generation.
+A **Model Context Protocol (MCP) server** that crawls and indexes the complete [DevExpress ASP.NET Bootstrap documentation](https://docs.devexpress.com/AspNetBootstrap/) **AND GitHub code examples**, providing **instant local search** for AI-assisted code generation.
 
 ## ✨ Features
 
 - 📦 **Starter Index Included** - 500 essential pages pre-indexed (~1.67 MB) - works out of the box!
 - 🕷️ **Complete Documentation Crawler** - Can index 8,000+ pages from DevExpress Bootstrap docs
+- 💻 **GitHub Code Examples** - Index real C#, ASPX, ASCX code from DevExpress-Examples
 - 🔍 **Instant Search** - Full-text search with fuzzy matching and code snippets
 - 💾 **Offline Access** - Once indexed, works without internet
 - 🤖 **AI Integration** - Works with Roo Code, Claude, and any MCP-compatible AI
@@ -153,7 +154,9 @@ Add the following to your `mcp_settings.json`:
       "alwaysAllow": [
         "devexpress_bootstrap_status",
         "devexpress_bootstrap_refresh_index",
-        "devexpress_bootstrap_open_top_result"
+        "devexpress_bootstrap_open_top_result",
+        "devexpress_bootstrap_refresh_github",
+        "devexpress_bootstrap_search_examples"
       ]
     }
   }
@@ -232,18 +235,20 @@ BootstrapTreeView node selection example, use devexpress mcp
 | `npm run build` | Compile TypeScript |
 | `npm run start` | Start MCP server (used by Roo Code) |
 | `npm run crawl` | Crawl documentation (default: 800 pages) |
+| `npm run crawl:docs` | Crawl only documentation |
+| `npm run crawl:github` | Crawl only GitHub code examples |
+| `npm run crawl:all` | Crawl both docs and GitHub examples |
 | `npm run crawl -- --max 5000` | Crawl up to 5000 pages |
-| `npm run crawl -- --continue` | Continue from previous crawl |
-| `npm run crawl -- --max 10000 --delay 500` | Full crawl with slower rate |
 
 ### Crawler Options
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--max N` | 800 | Maximum pages to index |
+| `--type {docs,github,all}` | docs | What to crawl: docs, GitHub examples, or both |
+| `--max N` | 800/100 | Maximum pages (docs) or files (GitHub) to index |
 | `--delay N` | 200 | Milliseconds between requests |
-| `--continue` | false | Resume from previous crawl |
-| `--url URL` | (DevExpress docs root) | Custom start URL |
+| `--continue` | false | Resume from previous crawl (docs only) |
+| `--github-token TOKEN` | - | GitHub personal access token (for higher rate limits) |
 
 ---
 
@@ -279,7 +284,7 @@ Run devexpress_bootstrap_refresh_index with maxPages=100
 
 ### 1. `devexpress_bootstrap_status`
 
-Check the current index status.
+Check the current index status for both documentation and GitHub examples.
 
 **Usage:**
 ```
@@ -290,15 +295,17 @@ Check devexpress_bootstrap_status
 ```json
 {
   "status": "ok",
-  "indexedCount": 500,
-  "visitedCount": 500,
-  "failureCount": 0,
-  "lastRefresh": "2026-01-19T13:00:00.000Z",
+  "documentation": {
+    "indexedCount": 500,
+    "lastRefresh": "2026-01-19T13:00:00.000Z"
+  },
+  "githubExamples": {
+    "totalExamples": 100,
+    "lastRefresh": "2026-01-19T14:00:00.000Z"
+  },
   "dataDir": "C:\\MCP\\DevExpress\\data"
 }
 ```
-
-> 💡 With the starter index, you'll see 500 pages. Run `npm run crawl` to expand to 8,000+.
 
 ---
 
@@ -342,6 +349,52 @@ Search for "BootstrapGridView column editing" in DevExpress docs
 - Text content
 - Code examples (up to 5)
 - Top 3 related results
+
+---
+
+### 4. `devexpress_bootstrap_refresh_github`
+
+Index code examples from DevExpress GitHub repositories.
+
+**Parameters:**
+| Name | Type | Default | Description |
+|------|------|---------|-------------|
+| `maxFiles` | number | 100 | Maximum code files to index |
+| `githubToken` | string | - | GitHub personal access token (optional) |
+| `delayMs` | number | 200 | Delay between API requests |
+
+**Usage:**
+```
+Run devexpress_bootstrap_refresh_github with maxFiles=200
+```
+
+> 💡 **GitHub Token:** Without a token, GitHub API is limited to 60 requests/hour. With a token, you get 5,000 requests/hour.
+
+---
+
+### 5. `devexpress_bootstrap_search_examples`
+
+Search indexed GitHub code examples for real-world implementations.
+
+**Parameters:**
+| Name | Type | Default | Description |
+|------|------|---------|-------------|
+| `query` | string | *required* | Search query (class name, method, etc.) |
+| `language` | string | all | Filter: "csharp", "aspx", or "ascx" |
+| `maxResults` | number | 5 | Maximum results to return |
+
+**Usage:**
+```
+Search GitHub examples for "BootstrapGridView" in csharp
+```
+
+**Response includes:**
+- File name and path
+- Repository name
+- Direct GitHub file URL
+- Language (csharp/aspx/ascx)
+- Code preview
+- Related classes and methods
 
 ---
 
@@ -407,14 +460,18 @@ npm run crawl -- --continue
 ```
 devexpress-bootstrap-mcp/
 ├── src/
-│   ├── server.ts          # MCP server (3 tools)
-│   └── crawl.ts           # Standalone crawler
+│   ├── server.ts          # MCP server (5 tools: docs + GitHub)
+│   ├── crawl.ts           # Standalone crawler (docs + GitHub)
+│   └── github-crawler.ts  # GitHub API crawler module
 ├── data/                   # Included: Starter index (500 pages)
-│   ├── pages.json         # Indexed pages (~1.67 MB starter, ~200 MB full)
-│   └── meta.json          # Crawl metadata
+│   ├── pages.json         # Indexed docs (~1.67 MB starter, ~200 MB full)
+│   ├── meta.json          # Docs crawl metadata
+│   ├── github-examples.json # Indexed code examples (after GitHub crawl)
+│   └── github-meta.json    # GitHub crawl metadata
 ├── dist/                   # Compiled JavaScript (created on build)
 │   ├── server.js
-│   └── crawl.js
+│   ├── crawl.js
+│   └── github-crawler.js
 ├── package.json           # Dependencies & scripts
 ├── tsconfig.json          # TypeScript configuration
 ├── .gitignore             # Git ignore rules
@@ -422,7 +479,10 @@ devexpress-bootstrap-mcp/
 └── README.md              # This file
 ```
 
-**Note:** The repository includes a starter index with 500 essential pages (~1.67 MB). Run `npm run crawl` to expand to the full 8,000+ page index.
+**Note:** The repository includes a starter index with 500 essential pages (~1.67 MB).
+- Run `npm run crawl:docs` to expand to 8,000+ documentation pages
+- Run `npm run crawl:github` to index 100+ code examples from GitHub
+- Run `npm run crawl:all` to index both
 
 ---
 

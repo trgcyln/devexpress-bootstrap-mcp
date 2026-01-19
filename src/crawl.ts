@@ -7,17 +7,24 @@
  * This bypasses the 60-second MCP tool timeout by running as a standalone Node.js process.
  *
  * Usage:
- *   npm run crawl                        # crawl with default settings (800 pages, 200ms)
- *   npm run crawl -- --max 500           # crawl 500 pages
- *   npm run crawl -- --max 1000 --delay 300   # 1000 pages, 300ms delay
- *   npm run crawl -- --continue          # CONTINUE from where last crawl stopped
- *   npm run crawl -- --continue --max 2000   # Continue and increase limit
+ *   npm run crawl                                    # crawl docs with default settings
+ *   npm run crawl:docs                               # crawl docs with default settings
+ *   npm run crawl:github                             # crawl GitHub code examples
+ *   npm run crawl:all                                # crawl both docs and GitHub examples
+ *   npm run crawl -- --type docs --max 500           # crawl 500 docs pages
+ *   npm run crawl -- --type github --max 200         # crawl 200 GitHub files
+ *   npm run crawl -- --type docs --continue          # continue from previous docs crawl
  */
 
 import * as cheerio from "cheerio";
 import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
+import {
+  crawlGitHubExamples,
+  saveGitHubExamples,
+  type GitHubExample,
+} from "./github-crawler.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -26,10 +33,12 @@ const PROJECT_ROOT = path.resolve(__dirname, "..");
 const DATA_DIR = path.join(PROJECT_ROOT, "data");
 const PAGES_FILE = path.join(DATA_DIR, "pages.json");
 const META_FILE = path.join(DATA_DIR, "meta.json");
-const QUEUE_FILE = path.join(DATA_DIR, "crawl_queue.json"); // For resume support
+const GITHUB_EXAMPLES_FILE = path.join(DATA_DIR, "github-examples.json");
+const GITHUB_META_FILE = path.join(DATA_DIR, "github-meta.json");
 
 const DEFAULT_START_URL = "https://docs.devexpress.com/AspNetBootstrap/117864/aspnet-bootstrap-controls";
 const DEFAULT_MAX_PAGES = 800;
+const DEFAULT_MAX_FILES = 100;
 const DEFAULT_DELAY_MS = 200;
 const ALLOWED_HOST = "docs.devexpress.com";
 const ALLOWED_PATH_PREFIX = "/AspNetBootstrap/";
@@ -58,6 +67,14 @@ interface IndexMeta {
 
 // CLI arguments
 const args = process.argv.slice(2);
+const getType = () => {
+  const idx = args.indexOf("--type");
+  if (idx >= 0 && args[idx + 1]) {
+    const type = args[idx + 1];
+    if (["docs", "github", "all"].includes(type)) return type;
+  }
+  return "docs"; // default
+};
 const getMax = () => {
   const idx = args.indexOf("--max");
   return idx >= 0 && args[idx + 1] ? parseInt(args[idx + 1]) : DEFAULT_MAX_PAGES;
@@ -69,6 +86,10 @@ const getDelay = () => {
 const getStartUrl = () => {
   const idx = args.indexOf("--url");
   return idx >= 0 && args[idx + 1] ? args[idx + 1] : DEFAULT_START_URL;
+};
+const getGithubToken = () => {
+  const idx = args.indexOf("--github-token");
+  return idx >= 0 && args[idx + 1] ? args[idx + 1] : undefined;
 };
 
 function log(message: string): void {
@@ -155,7 +176,7 @@ async function crawlDocumentation(
   const pages: IndexedPage[] = [];
   let failures = 0;
 
-  log(`🚀 Starting crawl from ${startUrl}`);
+  log(`🚀 Starting documentation crawl from ${startUrl}`);
   log(`📊 Max pages: ${maxPages}, Delay: ${delayMs}ms`);
   log(`⏱️  Estimated time: ~${Math.ceil(maxPages * delayMs / 60000)} minutes\n`);
 
@@ -185,7 +206,7 @@ async function crawlDocumentation(
           "User-Agent": "DevExpress-MCP-Crawler/1.0 (Documentation Indexer)",
           "Accept": "text/html,application/xhtml+xml",
         },
-        signal: AbortSignal.timeout(30000), // 30 second timeout per request
+        signal: AbortSignal.timeout(30000),
       });
 
       if (!response.ok) {
@@ -199,18 +220,16 @@ async function crawlDocumentation(
         continue;
       }
 
-      consecutiveFailures = 0; // Reset on success
+      consecutiveFailures = 0;
       const html = await response.text();
       const $ = cheerio.load(html);
 
-      // Extract title
       let title = $('meta[property="og:title"]').attr("content") || "";
       if (!title) {
         title = $("title").text() || "";
       }
       title = title.trim();
 
-      // Extract headings
       const headings: string[] = [];
       $("h1, h2, h3").each((_, el) => {
         const text = $(el).text().trim();
@@ -219,7 +238,6 @@ async function crawlDocumentation(
         }
       });
 
-      // Extract code blocks BEFORE removing elements
       const codeBlocks: string[] = [];
       $("pre").each((_, el) => {
         const code = $(el).text().trim();
@@ -228,7 +246,6 @@ async function crawlDocumentation(
         }
       });
 
-      // Extract links BEFORE removing navigation
       const newLinks = extractLinks(html, normalized);
       for (const link of newLinks) {
         if (!visited.has(link)) {
@@ -236,11 +253,9 @@ async function crawlDocumentation(
         }
       }
 
-      // Remove unwanted elements for text extraction
       $("script, style, nav, header, footer, iframe, noscript").remove();
       $(".header, .footer, .navigation, .sidebar, .dx-header, .dx-footer").remove();
 
-      // Extract main text
       const text = $("body").text().replace(/\s+/g, " ").trim();
 
       const page: IndexedPage = {
@@ -255,9 +270,8 @@ async function crawlDocumentation(
 
       pages.push(page);
 
-      // Save progress every 50 pages
       if (pages.length % 50 === 0) {
-        saveProgress(pages, { indexedCount: pages.length, visitedCount: visited.size, failureCount: failures });
+        saveDocs(pages, { indexedCount: pages.length, visitedCount: visited.size, failureCount: failures });
         log(`💾 Progress saved (${pages.length} pages)`);
       }
 
@@ -266,20 +280,19 @@ async function crawlDocumentation(
       log(`❌ Error: ${msg}`);
       failures++;
       consecutiveFailures++;
-      
+
       if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
         log(`❌ Too many consecutive failures (${consecutiveFailures}). Stopping crawl.`);
         break;
       }
     }
 
-    // Rate limiting
     if (delayMs > 0) {
       await sleep(delayMs);
     }
   }
 
-  log(`\n✅ Crawl complete!`);
+  log(`\n✅ Documentation crawl complete!`);
   log(`📊 Pages indexed: ${pages.length}`);
   log(`🌐 URLs visited: ${visited.size}`);
   log(`❌ Failures: ${failures}`);
@@ -287,10 +300,10 @@ async function crawlDocumentation(
   return { pages, visited: visited.size, failures };
 }
 
-function saveProgress(pages: IndexedPage[], partialMeta: Partial<IndexMeta>): void {
+function saveDocs(pages: IndexedPage[], partialMeta: Partial<IndexMeta>): void {
   ensureDataDir();
   fs.writeFileSync(PAGES_FILE, JSON.stringify(pages, null, 2), "utf-8");
-  
+
   const meta: IndexMeta = {
     startUrl: getStartUrl(),
     maxPages: getMax(),
@@ -302,67 +315,100 @@ function saveProgress(pages: IndexedPage[], partialMeta: Partial<IndexMeta>): vo
     allowedHost: ALLOWED_HOST,
     allowedPathPrefix: ALLOWED_PATH_PREFIX,
   };
-  
+
   fs.writeFileSync(META_FILE, JSON.stringify(meta, null, 2), "utf-8");
 }
 
-async function main(): Promise<void> {
-  let maxPages = getMax();
+async function crawlGitHub(): Promise<void> {
+  const maxFiles = getMax();
   const delayMs = getDelay();
-  let startUrl = getStartUrl();
-  const shouldContinue = args.includes("--continue");
+  const githubToken = getGithubToken();
 
-  console.log("\n╔════════════════════════════════════════════════════════════╗");
-  console.log("║   DevExpress ASP.NET Bootstrap Documentation Crawler    ║");
-  console.log("╚════════════════════════════════════════════════════════════╝\n");
-
-  // Load existing progress if continuing
-  let existingPages: IndexedPage[] = [];
-  if (shouldContinue && fs.existsSync(PAGES_FILE)) {
-    try {
-      const data = fs.readFileSync(PAGES_FILE, "utf-8");
-      existingPages = JSON.parse(data) as IndexedPage[];
-      log(`📂 Found existing index with ${existingPages.length} pages`);
-      log(`🔄 CONTINUING from previous crawl...`);
-      
-      // If no max pages specified in args, increase default
-      if (args.indexOf("--max") === -1) {
-        maxPages = Math.max(DEFAULT_MAX_PAGES * 2, existingPages.length + 500);
-        log(`📊 Automatically increased maxPages to ${maxPages}`);
-      }
-    } catch (error) {
-      log(`⚠️  Could not load existing pages, starting fresh`);
-      existingPages = [];
-    }
-  } else if (shouldContinue && !fs.existsSync(PAGES_FILE)) {
-    log(`⚠️  No existing index found. Starting fresh crawl.`);
-  }
+  log(`🚀 Starting GitHub code examples crawl`);
+  log(`📊 Max files: ${maxFiles}, Delay: ${delayMs}ms`);
 
   const startTime = Date.now();
+  const { examples, meta } = await crawlGitHubExamples({
+    maxFiles,
+    githubToken,
+    delayMs,
+  });
 
-  const { pages, visited, failures } = await crawlDocumentation(startUrl, maxPages, delayMs);
-
-  // Merge with existing pages if continuing
-  let finalPages = pages;
-  if (shouldContinue && existingPages.length > 0) {
-    // Create a set of existing URLs to avoid duplicates
-    const existingUrls = new Set(existingPages.map(p => p.url));
-    const newPages = pages.filter(p => !existingUrls.has(p.url));
-    finalPages = [...existingPages, ...newPages];
-    log(`✅ Merged ${newPages.length} new pages with ${existingPages.length} existing pages`);
-    log(`📊 Total unique pages: ${finalPages.length}`);
-  }
-
-  // Final save
-  saveProgress(finalPages, { indexedCount: finalPages.length, visitedCount: visited, failureCount: failures });
+  saveGitHubExamples(examples, meta);
 
   const duration = Math.round((Date.now() - startTime) / 1000);
   const minutes = Math.floor(duration / 60);
   const seconds = duration % 60;
 
-  console.log(`\n⏱️  Total time: ${minutes}m ${seconds}s`);
-  console.log(`📁 Data saved to: ${DATA_DIR}`);
-  console.log(`\n✨ You can now search the docs using the MCP server!\n`);
+  log(`\n✅ GitHub crawl complete!`);
+  log(`📊 Examples indexed: ${examples.length}`);
+  log(`📦 Repositories: ${meta.repos.length}`);
+  meta.repos.forEach(repo => {
+    log(`   - ${repo.name}: ${repo.filesIndexed} files`);
+  });
+  log(`⏱️  Total time: ${minutes}m ${seconds}s`);
+}
+
+async function main(): Promise<void> {
+  const crawlType = getType();
+
+  console.log("\n╔════════════════════════════════════════════════════════════╗");
+  console.log("║     DevExpress Bootstrap MCP - Crawler Tool              ║");
+  console.log("╚════════════════════════════════════════════════════════════╝\n");
+
+  log(`🎯 Crawl type: ${crawlType}`);
+
+  const startTime = Date.now();
+
+  try {
+    if (crawlType === "docs" || crawlType === "all") {
+      log(`\n📚 === Crawling Documentation ===${crawlType === "all" ? " (1/2)" : ""}`);
+      const maxPages = getMax();
+      const delayMs = getDelay();
+      const startUrl = getStartUrl();
+
+      let existingPages: IndexedPage[] = [];
+      if (args.includes("--continue") && fs.existsSync(PAGES_FILE)) {
+        try {
+          const data = fs.readFileSync(PAGES_FILE, "utf-8");
+          existingPages = JSON.parse(data) as IndexedPage[];
+          log(`📂 Found existing index with ${existingPages.length} pages`);
+          log(`🔄 CONTINUING from previous crawl...`);
+        } catch (error) {
+          log(`⚠️  Could not load existing pages, starting fresh`);
+        }
+      }
+
+      const { pages, visited, failures } = await crawlDocumentation(startUrl, maxPages, delayMs);
+
+      let finalPages = pages;
+      if (args.includes("--continue") && existingPages.length > 0) {
+        const existingUrls = new Set(existingPages.map(p => p.url));
+        const newPages = pages.filter(p => !existingUrls.has(p.url));
+        finalPages = [...existingPages, ...newPages];
+        log(`✅ Merged ${newPages.length} new pages with ${existingPages.length} existing pages`);
+        log(`📊 Total unique pages: ${finalPages.length}`);
+      }
+
+      saveDocs(finalPages, { indexedCount: finalPages.length, visitedCount: visited, failureCount: failures });
+    }
+
+    if (crawlType === "github" || crawlType === "all") {
+      log(`\n💻 === Crawling GitHub Examples ===${crawlType === "all" ? " (2/2)" : ""}`);
+      await crawlGitHub();
+    }
+
+    const duration = Math.round((Date.now() - startTime) / 1000);
+    const minutes = Math.floor(duration / 60);
+    const seconds = duration % 60;
+
+    console.log(`\n⏱️  Total time: ${minutes}m ${seconds}s`);
+    console.log(`📁 Data saved to: ${DATA_DIR}`);
+    console.log(`\n✨ Ready to search! Start the MCP server with: npm run start\n`);
+  } catch (error) {
+    log(`❌ Fatal error: ${error instanceof Error ? error.message : String(error)}`);
+    process.exit(1);
+  }
 }
 
 main().catch((error) => {

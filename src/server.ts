@@ -2,9 +2,9 @@
 
 /**
  * DevExpress ASP.NET Bootstrap Documentation MCP Server
- * 
- * This server crawls and indexes the DevExpress ASP.NET Bootstrap documentation,
- * providing fast local search capabilities for code generation assistance.
+ *
+ * This server crawls and indexes the DevExpress ASP.NET Bootstrap documentation
+ * AND GitHub code examples, providing fast local search capabilities for code generation.
  */
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
@@ -19,6 +19,13 @@ import MiniSearch from "minisearch";
 import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
+import {
+  crawlGitHubExamples,
+  loadGitHubExamples,
+  loadGitHubMeta,
+  saveGitHubExamples,
+  type GitHubExample,
+} from "./github-crawler.js";
 
 // =============================================================================
 // TYPES AND INTERFACES
@@ -97,14 +104,23 @@ const ALLOWED_PATH_PREFIX = "/AspNetBootstrap/";
 // GLOBAL STATE
 // =============================================================================
 
-/** In-memory array of indexed pages */
+/** In-memory array of indexed documentation pages */
 let indexedPages: IndexedPage[] = [];
 
-/** MiniSearch instance for fast full-text search */
+/** In-memory array of indexed GitHub code examples */
+let githubExamples: GitHubExample[] = [];
+
+/** MiniSearch instance for documentation pages */
 let searchIndex: MiniSearch<IndexedPage> | null = null;
 
-/** Current metadata */
+/** MiniSearch instance for GitHub code examples */
+let githubSearchIndex: MiniSearch<GitHubExample> | null = null;
+
+/** Current documentation index metadata */
 let indexMeta: IndexMeta | null = null;
+
+/** GitHub examples metadata */
+let githubMeta: { totalExamples: number; lastRefresh: string } | null = null;
 
 // =============================================================================
 // UTILITY FUNCTIONS
@@ -482,6 +498,33 @@ function loadIndex(): { pages: IndexedPage[]; meta: IndexMeta | null } {
 }
 
 /**
+ * Build a MiniSearch index for GitHub examples
+ */
+function buildGitHubIndex(examples: GitHubExample[]): MiniSearch<GitHubExample> {
+  const index = new MiniSearch<GitHubExample>({
+    fields: ["title", "description", "content", "relatedClasses", "relatedMethods"],
+    storeFields: ["id", "title", "filePath", "repoName", "repoUrl", "fileUrl", "language", "fetchedAt"],
+    searchOptions: {
+      boost: { title: 3, relatedClasses: 2, relatedMethods: 2 },
+      fuzzy: 0.2,
+      prefix: true,
+    },
+    extractField: (document, fieldName) => {
+      const value = document[fieldName as keyof GitHubExample];
+      if (Array.isArray(value)) {
+        return value.join(" ");
+      }
+      return value as string;
+    },
+  });
+
+  index.addAll(examples);
+  logDebug(`GitHub search index built with ${examples.length} examples`);
+
+  return index;
+}
+
+/**
  * Initialize the search index on startup
  */
 function initializeIndex(): void {
@@ -494,6 +537,16 @@ function initializeIndex(): void {
   } else {
     searchIndex = null;
   }
+
+  // Load GitHub examples
+  githubExamples = loadGitHubExamples();
+  githubMeta = loadGitHubMeta();
+
+  if (githubExamples.length > 0) {
+    githubSearchIndex = buildGitHubIndex(githubExamples);
+  } else {
+    githubSearchIndex = null;
+  }
 }
 
 // =============================================================================
@@ -502,27 +555,28 @@ function initializeIndex(): void {
 
 /**
  * Tool: devexpress_bootstrap_status
- * Returns current index status
+ * Returns current index status for both docs and GitHub examples
  */
 function handleStatus(): string {
-  if (!indexMeta) {
-    return JSON.stringify({
-      status: "no_index",
-      message: "No index found. Run devexpress_bootstrap_refresh_index to create one.",
-      dataDir: DATA_DIR,
-      indexedCount: 0,
-    }, null, 2);
-  }
-
   return JSON.stringify({
     status: "ok",
-    indexedCount: indexMeta.indexedCount,
-    visitedCount: indexMeta.visitedCount,
-    failureCount: indexMeta.failureCount,
-    lastRefresh: indexMeta.lastRefresh,
-    startUrl: indexMeta.startUrl,
-    maxPages: indexMeta.maxPages,
-    delayMs: indexMeta.delayMs,
+    documentation: indexMeta ? {
+      indexedCount: indexMeta.indexedCount,
+      visitedCount: indexMeta.visitedCount,
+      failureCount: indexMeta.failureCount,
+      lastRefresh: indexMeta.lastRefresh,
+      startUrl: indexMeta.startUrl,
+    } : {
+      indexedCount: 0,
+      message: "No documentation index. Run devexpress_bootstrap_refresh first.",
+    },
+    githubExamples: githubMeta ? {
+      totalExamples: githubMeta.totalExamples,
+      lastRefresh: githubMeta.lastRefresh,
+    } : {
+      totalExamples: 0,
+      message: "No GitHub examples. Run devexpress_bootstrap_refresh_github first.",
+    },
     dataDir: DATA_DIR,
   }, null, 2);
 }
@@ -671,6 +725,121 @@ function handleOpenTopResult(
 }
 
 // =============================================================================
+// MCP TOOL IMPLEMENTATIONS - GITHUB EXAMPLES
+// =============================================================================
+
+/**
+ * Tool: devexpress_bootstrap_refresh_github
+ * Indexes code examples from DevExpress GitHub repositories
+ */
+async function handleRefreshGitHub(
+  maxFiles: number = 100,
+  githubToken?: string,
+  delayMs: number = 200
+): Promise<string> {
+  try {
+    logDebug("Starting GitHub examples indexing...");
+
+    const { examples, meta } = await crawlGitHubExamples({
+      maxFiles,
+      githubToken,
+      delayMs,
+    });
+
+    saveGitHubExamples(examples, meta);
+
+    // Update in-memory state
+    githubExamples = examples;
+    githubMeta = { totalExamples: meta.totalExamples, lastRefresh: meta.lastRefresh };
+    githubSearchIndex = buildGitHubIndex(examples);
+
+    const reposSummary = meta.repos.map(r => `${r.name}: ${r.filesIndexed} files`).join(", ");
+
+    return JSON.stringify({
+      status: "success",
+      message: `Successfully indexed ${examples.length} GitHub code examples from ${meta.repos.length} repositories.`,
+      totalExamples: examples.length,
+      repos: meta.repos,
+      reposSummary,
+      lastRefresh: meta.lastRefresh,
+      dataDir: DATA_DIR,
+    }, null, 2);
+  } catch (error) {
+    return JSON.stringify({
+      status: "error",
+      message: `GitHub indexing failed: ${error instanceof Error ? error.message : String(error)}`,
+    }, null, 2);
+  }
+}
+
+/**
+ * Tool: devexpress_bootstrap_search_examples
+ * Searches indexed GitHub code examples
+ */
+function handleSearchExamples(
+  query: string,
+  language?: string,
+  maxResults: number = 5
+): string {
+  if (!githubSearchIndex || githubExamples.length === 0) {
+    return JSON.stringify({
+      status: "no_index",
+      message: "No GitHub examples index available. Please run devexpress_bootstrap_refresh_github first.",
+    }, null, 2);
+  }
+
+  // Perform search
+  const results = githubSearchIndex.search(query) as Array<{ id: string; score: number }>;
+
+  if (results.length === 0) {
+    return JSON.stringify({
+      status: "no_results",
+      message: `No code examples found for query: "${query}"`,
+      query,
+      availableExamples: githubExamples.length,
+    }, null, 2);
+  }
+
+  // Filter by language if specified
+  let filteredResults = results;
+  if (language) {
+    const langLower = language.toLowerCase();
+    filteredResults = results.filter(r => {
+      const example = githubExamples.find(e => e.id === r.id);
+      return example?.language === langLower;
+    });
+  }
+
+  // Get top results
+  const topResults = filteredResults.slice(0, maxResults).map(r => {
+    const example = githubExamples.find(e => e.id === r.id);
+    if (!example) return null;
+
+    return {
+      title: example.title,
+      repoName: example.repoName,
+      filePath: example.filePath,
+      fileUrl: example.fileUrl,
+      language: example.language,
+      description: example.description,
+      contentPreview: example.contentPreview,
+      relatedClasses: example.relatedClasses,
+      relatedMethods: example.relatedMethods,
+      score: r.score,
+    };
+  }).filter(Boolean);
+
+  return JSON.stringify({
+    status: "success",
+    query,
+    language: language || "all",
+    totalResults: filteredResults.length,
+    returnedResults: topResults.length,
+    examples: topResults,
+  }, null, 2);
+}
+
+// =============================================================================
 // MCP SERVER SETUP
 // =============================================================================
 
@@ -759,6 +928,56 @@ const TOOLS: Tool[] = [
       required: ["query"],
     },
   },
+
+  // === GitHub Examples Tools ===
+  {
+    name: "devexpress_bootstrap_refresh_github",
+    description: "Indexes code examples from DevExpress GitHub repositories (C#, ASPX, ASCX files). Searches DevExpress-Examples org for WebForms and Bootstrap-related code.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        maxFiles: {
+          type: "number",
+          description: "Maximum number of code files to index",
+          default: 100,
+        },
+        githubToken: {
+          type: "string",
+          description: "Optional GitHub personal access token for higher rate limits (5000/hour vs 60/hour)",
+        },
+        delayMs: {
+          type: "number",
+          description: "Delay between API requests in milliseconds",
+          default: 200,
+        },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "devexpress_bootstrap_search_examples",
+    description: "Searches indexed GitHub code examples for relevant DevExpress code. Find class implementations, method examples, and real-world usage patterns.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: {
+          type: "string",
+          description: "Search query (e.g., 'BootstrapGridView', 'DataBind', 'OnRowDeleting')",
+        },
+        language: {
+          type: "string",
+          description: "Filter by language: 'csharp', 'aspx', or 'ascx'. Leave empty for all.",
+          enum: ["csharp", "aspx", "ascx"],
+        },
+        maxResults: {
+          type: "number",
+          description: "Maximum number of results to return",
+          default: 5,
+        },
+      },
+      required: ["query"],
+    },
+  },
 ];
 
 /**
@@ -822,6 +1041,32 @@ function createServer(): Server {
              content: [{ type: "text", text: result }],
            };
         }
+
+       case "devexpress_bootstrap_refresh_github": {
+         const maxFiles = (args?.maxFiles as number) || 100;
+         const githubToken = args?.githubToken as string;
+         const delayMs = (args?.delayMs as number) || 200;
+         const result = await handleRefreshGitHub(maxFiles, githubToken, delayMs);
+         return {
+           content: [{ type: "text", text: result }],
+         };
+       }
+
+       case "devexpress_bootstrap_search_examples": {
+         const query = args?.query as string;
+         if (!query) {
+           return {
+             content: [{ type: "text", text: JSON.stringify({ status: "error", message: "Query parameter is required" }) }],
+             isError: true,
+           };
+         }
+         const language = args?.language as "csharp" | "aspx" | "ascx" | undefined;
+         const maxResults = (args?.maxResults as number) || 5;
+         const result = handleSearchExamples(query, language, maxResults);
+         return {
+           content: [{ type: "text", text: result }],
+         };
+       }
 
         default:
           return {

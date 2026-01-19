@@ -16,6 +16,9 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "crawl": "node dist/crawl.js",
+    "crawl:docs": "node dist/crawl.js --type=docs",
+    "crawl:github": "node dist/crawl.js --type=github",
+    "crawl:all": "node dist/crawl.js --type=all",
     "dev": "tsc && node dist/server.js",
     "watch": "tsc --watch"
   },
